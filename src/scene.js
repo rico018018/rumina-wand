@@ -18,6 +18,12 @@ const STONE = 0x515a8c;
 const GOLD = 0xe8b854;
 const BLUE_GLOW = 0x5f8fff;
 
+/** 構図の基準。これより縦長の画面では画角を広げて横の見える範囲を保つ。 */
+const BASE_FOV_DEG = 42;
+const BASE_ASPECT = 16 / 9;
+/** 縦長の画面で画角を広げる上限。これ以上広げると魚眼のように歪むため、端は切れてよいことにする。 */
+const MAX_FOV_DEG = 72;
+
 /** 呪文ごとの「光と演出が向かう先」 */
 const TARGET_POINTS = {
   accio: new THREE.Vector3(-2.05, 0.7, 1.35),
@@ -155,7 +161,7 @@ export class MagicScene {
     this.scene.background = new THREE.Color(NAVY);
     this.scene.fog = new THREE.Fog(0x1a2250, 12, 30);
 
-    this.camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.1, 60);
+    this.camera = new THREE.PerspectiveCamera(BASE_FOV_DEG, BASE_ASPECT, 0.1, 60);
     this.camera.position.set(0, 2.15, 6.9);
     this.camera.lookAt(0, 1.15, 0.2);
 
@@ -595,7 +601,18 @@ export class MagicScene {
     const h = Math.max(1, parent?.clientHeight || this.canvas.clientHeight || 360);
     this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, this.maxPixelRatio));
     this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
+
+    const aspect = w / h;
+    this.camera.aspect = aspect;
+    // 16:9 より縦長の画面では、横に見える範囲が狭まらないよう縦の画角を広げる。
+    // 16:9 より横長（iPhoneの19.5:9 など）では、そのまま横に広く見える。
+    if (aspect < BASE_ASPECT) {
+      const halfWidth = Math.tan((BASE_FOV_DEG * Math.PI) / 360) * BASE_ASPECT;
+      const needed = (2 * Math.atan(halfWidth / aspect) * 180) / Math.PI;
+      this.camera.fov = Math.min(MAX_FOV_DEG, needed);
+    } else {
+      this.camera.fov = BASE_FOV_DEG;
+    }
     this.camera.updateProjectionMatrix();
   }
 
