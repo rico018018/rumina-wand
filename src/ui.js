@@ -109,6 +109,8 @@ function setPanel(open) {
   // 開いている間、歯車ボタンはパネルの下に隠れるので出さない（とじるボタンで閉じる）
   panelToggle.hidden = open;
   panelToggle.setAttribute('aria-expanded', String(open));
+  // 子ども向けの表示をパネルに隠れない位置へ寄せる（styles.css の .panel-open）
+  document.body.classList.toggle('panel-open', open);
   setTimeout(onResize, 50);
 }
 panelToggle.addEventListener('click', () => setPanel(panel.hidden));

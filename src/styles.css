@@ -78,7 +78,14 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   gap: clamp(8px, 1.4vh, 18px);
   padding: clamp(10px, 2.2vmin, 28px);
   padding-bottom: max(clamp(10px, 2.2vmin, 28px), env(safe-area-inset-bottom));
+  transition: padding-right 180ms ease;
 }
+
+/*
+  保護者パネルは遊び画面に重なる。開いている間は、子ども向けの表示が
+  パネルの下に隠れて切れないよう、見えている範囲の中央に寄せる。
+*/
+body.panel-open .hud { padding-right: calc(min(460px, 100vw) + clamp(10px, 2.2vmin, 28px)); }
 
 /* --- 署名要素：杖の形をした状態表示。杖先が登録色で光る --- */
 .wandbar {
