@@ -686,6 +686,17 @@ export class MagicScene {
   }
 
   /**
+   * 加算合成は明るい色ほど白へ飛ぶ。
+   * 説明書の色には「白ブルー」「白紫」「淡い水色」のような淡い色があり、
+   * そのまま出すと白い円になって杖の色と見分けがつかなくなる。
+   * 明るい色ほど不透明度を下げて、色味が残るようにする。
+   */
+  static colorOpacityScale(color) {
+    const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+    return 1 - 0.58 * Math.min(1, luminance);
+  }
+
+  /**
    * 登録色の光を出す（要件の順番で、待ち時間のあとに呼ぶ）。
    * 全画面の白光や点滅はしない。発動地点と軌跡に限定する。
    */
@@ -709,6 +720,7 @@ export class MagicScene {
       from: CAST_ORIGIN.clone(),
       to: target,
       intensity,
+      opacityScale: MagicScene.colorOpacityScale(color),
     });
   }
 
@@ -726,7 +738,10 @@ export class MagicScene {
     const color = new THREE.Color(hexColor);
     this.castOrb.material.color.copy(color);
     this.castLight.color.copy(color);
-    this.effects.push({ kind: 'gentle', start: performance.now(), duration: 700 });
+    this.effects.push({
+      kind: 'gentle', start: performance.now(), duration: 700,
+      opacityScale: MagicScene.colorOpacityScale(color),
+    });
   }
 
   /** 設定画面のプレビュー。短い光の見本だけで、世界の状態は変えない。 */
@@ -734,7 +749,10 @@ export class MagicScene {
     const color = new THREE.Color(hexColor);
     this.castOrb.material.color.copy(color);
     this.castLight.color.copy(color);
-    this.effects.push({ kind: 'preview', start: performance.now(), duration: 850 });
+    this.effects.push({
+      kind: 'preview', start: performance.now(), duration: 850,
+      opacityScale: MagicScene.colorOpacityScale(color),
+    });
   }
 
   // ---------------------------------------------------------------- 毎フレーム
@@ -854,7 +872,8 @@ export class MagicScene {
         const rise = Math.min(1, p / 0.18);
         const decay = Math.max(0, 1 - Math.max(0, (p - 0.18) / 0.82));
         const env = rise * decay;
-        orbOpacity = Math.max(orbOpacity, env * 0.6);
+        const k = fx.opacityScale ?? 1;
+        orbOpacity = Math.max(orbOpacity, env * 0.6 * k);
         lightIntensity = Math.max(lightIntensity, env * 2.6 * (fx.intensity ?? 1));
         this.castOrb.scale.setScalar(0.75 + env * 0.55);
 
@@ -864,7 +883,7 @@ export class MagicScene {
           const pos = fx.from.clone().lerp(fx.to, travel);
           pos.y += Math.sin(travel * Math.PI) * 0.95;
           this.bolt.position.copy(pos);
-          boltOpacity = Math.max(boltOpacity, 0.78);
+          boltOpacity = Math.max(boltOpacity, 0.78 * (fx.opacityScale ?? 1));
           this.castLight.position.copy(pos);
         } else if (travel >= 1) {
           this.castLight.position.copy(fx.to);
@@ -874,7 +893,7 @@ export class MagicScene {
         const ringP = Math.min(1, Math.max(0, (p - 0.5) / 0.5));
         if (ringP > 0) {
           this.ring.scale.setScalar(0.5 + ringP * 2.0);
-          ringOpacity = Math.max(ringOpacity, (1 - ringP) * 0.55);
+          ringOpacity = Math.max(ringOpacity, (1 - ringP) * 0.55 * (fx.opacityScale ?? 1));
         }
         return true;
       }
@@ -891,7 +910,7 @@ export class MagicScene {
 
       if (fx.kind === 'gentle' || fx.kind === 'preview') {
         const env = Math.sin(Math.min(1, p) * Math.PI);
-        orbOpacity = Math.max(orbOpacity, env * 0.5);
+        orbOpacity = Math.max(orbOpacity, env * 0.5 * (fx.opacityScale ?? 1));
         lightIntensity = Math.max(lightIntensity, env * 1.4);
         this.castOrb.scale.setScalar(0.6 + env * 0.4);
         this.castLight.position.copy(CAST_ORIGIN);
