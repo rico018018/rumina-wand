@@ -95,7 +95,7 @@ export class WandApp {
       listening: false,
       suppressedUntil: 0,
       interim: '',
-      childMessage: 'はじめる ボタンを おしてね',
+      childMessage: 'したの ボタンを おしてね',
       childMode: 'idle',          // idle | listening | waiting | casting | failed | notarget
       childSpellId: null,
       parentNote: '',
@@ -121,7 +121,7 @@ export class WandApp {
       if (Array.isArray(saved.treasures)) w.treasures = saved.treasures.slice(0, 10);
       if (Array.isArray(saved.slugs)) w.slugs = saved.slugs.slice(0, 10);
       if (Array.isArray(saved.debris)) w.debris = saved.debris.slice(0, 40);
-      if (Array.isArray(saved.droppedWands)) w.droppedWands = saved.droppedWands.slice(0, 3);
+      if (Array.isArray(saved.droppedSwords)) w.droppedSwords = saved.droppedSwords.slice(0, 3);
       if (Array.isArray(saved.rocks) && saved.rocks.length === w.rocks.length) {
         w.rocks = w.rocks.map((r, i) => ({ ...r, broken: Boolean(saved.rocks[i]?.broken) }));
       }
@@ -129,18 +129,18 @@ export class WandApp {
         w.shield.active = Boolean(saved.shield.active);
         w.shield.level = Math.min(20, Math.max(0, Number(saved.shield.level) || 0));
       }
-      if (saved.wizard && typeof saved.wizard === 'object') {
-        const sw = saved.wizard;
-        w.wizard.conscious = sw.conscious !== false;
-        w.wizard.injured = Boolean(sw.injured);
-        w.wizard.holdsWand = sw.holdsWand !== false;
-        w.wizard.offsetZ = Math.min(0, Math.max(-3.6, Number(sw.offsetZ) || 0));
-        w.wizard.onSoftLanding = Boolean(sw.onSoftLanding);
+      if (saved.armor && typeof saved.armor === 'object') {
+        const sa = saved.armor;
+        w.armor.standing = sa.standing !== false;
+        w.armor.dented = Boolean(sa.dented);
+        w.armor.holdsSword = sa.holdsSword !== false;
+        w.armor.offsetZ = Math.min(0, Math.max(-3.6, Number(sa.offsetZ) || 0));
+        w.armor.onSoftLanding = Boolean(sa.onSoftLanding);
         // 時間で切れる状態は引き継がない（再読み込み後に残り続けないように）
-        w.wizard.tickling = false;
-        w.wizard.tickleUntil = null;
-        w.wizard.speedFactor = 1;
-        w.wizard.slowUntil = null;
+        w.armor.tickling = false;
+        w.armor.tickleUntil = null;
+        w.armor.speedFactor = 1;
+        w.armor.slowUntil = null;
       }
       w.revision = Number(saved.revision) || 0;
       return w;
@@ -217,7 +217,7 @@ export class WandApp {
     this.audio.unlock();
     if (!this.support.hasApi) {
       this.#setStatus({
-        childMessage: 'おとは きけないけど ボタンで あそべるよ',
+        childMessage: 'おとは つかえないよ',
         childMode: 'idle',
         parentNote: 'このブラウザに音声認識APIがありません。手動のボタンだけで遊べます。',
       });
@@ -233,7 +233,7 @@ export class WandApp {
 
   stopListening(reason = 'user') {
     this.speech.stop(reason);
-    this.#setStatus({ listening: false, childMode: 'idle', childMessage: 'とまっているよ', interim: '' });
+    this.#setStatus({ listening: false, childMode: 'idle', childMessage: 'したの ボタンを おしてね', interim: '' });
   }
 
   #onSpeechState(state, info) {

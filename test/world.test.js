@@ -10,14 +10,14 @@ test('初期状態', () => {
   assert.deepEqual(w.treasures, []);
   assert.deepEqual(w.slugs, []);
   assert.deepEqual(w.debris, []);
-  assert.deepEqual(w.droppedWands, []);
+  assert.deepEqual(w.droppedSwords, []);
   assert.equal(w.rocks.length, INITIAL_ROCK_COUNT);
   assert.equal(w.rocks.every((r) => !r.broken), true);
   assert.equal(w.shield.active, false);
-  assert.equal(w.wizard.conscious, true);
-  assert.equal(w.wizard.injured, false);
-  assert.equal(w.wizard.holdsWand, true);
-  assert.equal(w.wizard.speedFactor, 1);
+  assert.equal(w.armor.standing, true);
+  assert.equal(w.armor.dented, false);
+  assert.equal(w.armor.holdsSword, true);
+  assert.equal(w.armor.speedFactor, 1);
 });
 
 test('Accio: 毎回宝物が1個増える', () => {
@@ -79,22 +79,22 @@ test('Reducto: 壊す岩がなければ「対象がない」。認識失敗で�
   assert.match(r.message, /こわせる/);
 });
 
-test('Stupefy: 気絶させる。気絶済みなら再度倒さない', () => {
+test('Stupefy: よろいを崩す。崩れていれば二重に崩さない', () => {
   const w = createInitialWorld();
   const first = applySpell(w, 'stupefy', { now: T0 });
   assert.equal(first.status, 'applied');
-  assert.equal(w.wizard.conscious, false);
+  assert.equal(w.armor.standing, false);
   const second = applySpell(w, 'stupefy', { now: T0 + 1 });
   assert.equal(second.status, 'already');
-  assert.equal(w.wizard.conscious, false);
+  assert.equal(w.armor.standing, false);
 });
 
-test('気絶中はくすぐりなどの不整合な動作を実行しない', () => {
+test('崩れている間はくすぐりなどの不整合な動作を実行しない', () => {
   const w = createInitialWorld();
   applySpell(w, 'stupefy', { now: T0 });
   const tickle = applySpell(w, 'rictusempra', { now: T0 + 1 });
   assert.equal(tickle.status, 'no_target');
-  assert.equal(w.wizard.tickling, false);
+  assert.equal(w.armor.tickling, false);
 
   const push = applySpell(w, 'everte_statum', { now: T0 + 2 });
   assert.equal(push.status, 'no_target');
@@ -107,63 +107,63 @@ test('気絶中はくすぐりなどの不整合な動作を実行しない', ()
   assert.equal(w.slugs.length, 0);
 });
 
-test('Rennervate: 気絶から回復する。起きていれば光だけ', () => {
+test('Rennervate: 崩れたよろいを立ち上がらせる。立っていれば光だけ', () => {
   const w = createInitialWorld();
   const noop = applySpell(w, 'rennervate', { now: T0 });
   assert.equal(noop.status, 'no_target');
-  assert.equal(w.wizard.conscious, true);
+  assert.equal(w.armor.standing, true);
 
   applySpell(w, 'stupefy', { now: T0 + 1 });
   const wake = applySpell(w, 'rennervate', { now: T0 + 2 });
   assert.equal(wake.status, 'applied');
-  assert.equal(w.wizard.conscious, true);
+  assert.equal(w.armor.standing, true);
 });
 
-test('Episkey: けがを治す。けががなければ光だけ', () => {
+test('Episkey: へこみを直す。へこみがなければ光だけ', () => {
   const w = createInitialWorld();
   const noop = applySpell(w, 'episkey', { now: T0 });
   assert.equal(noop.status, 'no_target');
 
   applySpell(w, 'everte_statum', { now: T0 + 1 });
-  assert.equal(w.wizard.injured, true, '吹き飛ばされると小さなすりきずができる（初期案）');
+  assert.equal(w.armor.dented, true, '吹き飛ばされると小さなへこみができる（初期案）');
   const heal = applySpell(w, 'episkey', { now: T0 + 2 });
   assert.equal(heal.status, 'applied');
-  assert.equal(w.wizard.injured, false);
+  assert.equal(w.armor.dented, false);
 });
 
-test('Expelliarmus: 杖を持っていれば飛ばし、持っていなければ対象なし', () => {
+test('Expelliarmus: 剣を持っていれば飛ばし、持っていなければ対象なし', () => {
   const w = createInitialWorld();
   const first = applySpell(w, 'expelliarmus', { now: T0 });
   assert.equal(first.status, 'applied');
-  assert.equal(w.wizard.holdsWand, false);
-  assert.equal(w.droppedWands.length, 1, '杖が床に残る');
+  assert.equal(w.armor.holdsSword, false);
+  assert.equal(w.droppedSwords.length, 1, '剣が床に残る');
 
   const second = applySpell(w, 'expelliarmus', { now: T0 + 1 });
   assert.equal(second.status, 'no_target');
-  assert.equal(w.droppedWands.length, 1);
+  assert.equal(w.droppedSwords.length, 1);
 });
 
 test('Rictusempra: くすぐりは有限時間で元に戻る', () => {
   const w = createInitialWorld();
   const r = applySpell(w, 'rictusempra', { now: T0 });
   assert.equal(r.status, 'applied');
-  assert.equal(w.wizard.tickling, true);
+  assert.equal(w.armor.tickling, true);
   tickWorld(w, T0 + 500);
-  assert.equal(w.wizard.tickling, true);
+  assert.equal(w.armor.tickling, true);
   const changed = tickWorld(w, T0 + 60_000);
-  assert.equal(w.wizard.tickling, false);
+  assert.equal(w.armor.tickling, false);
   assert.equal(changed.changed, true);
 });
 
 test('Impedimenta: 速度を下げるが負にならず、有限時間で戻る', () => {
   const w = createInitialWorld();
   applySpell(w, 'impedimenta', { now: T0 });
-  assert.ok(w.wizard.speedFactor < 1);
+  assert.ok(w.armor.speedFactor < 1);
   for (let i = 0; i < 20; i += 1) applySpell(w, 'impedimenta', { now: T0 + 1 + i });
-  assert.ok(w.wizard.speedFactor > 0, '負値やゼロまで下げない');
-  assert.ok(w.wizard.speedFactor >= 0.2);
+  assert.ok(w.armor.speedFactor > 0, '負値やゼロまで下げない');
+  assert.ok(w.armor.speedFactor >= 0.2);
   tickWorld(w, T0 + 10 * 60_000);
-  assert.equal(w.wizard.speedFactor, 1, '有限時間で元に戻る');
+  assert.equal(w.armor.speedFactor, 1, '有限時間で元に戻る');
 });
 
 test('Slugulas Eructo: 桶にナメクジが増え、上限で止まる', () => {
@@ -214,8 +214,8 @@ test('Everte Statum: 後ろへ飛ばし、柔らかい着地点を持つ', () =>
   const w = createInitialWorld();
   const r = applySpell(w, 'everte_statum', { now: T0 });
   assert.equal(r.status, 'applied');
-  assert.ok(w.wizard.offsetZ < 0, '奥へ下がる');
-  assert.equal(w.wizard.onSoftLanding, true);
+  assert.ok(w.armor.offsetZ < 0, '奥へ下がる');
+  assert.equal(w.armor.onSoftLanding, true);
 });
 
 test('知らない呪文IDは適用しない', () => {

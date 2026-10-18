@@ -26,20 +26,20 @@ const MAX_FOV_DEG = 72;
 
 /** 呪文ごとの「光と演出が向かう先」 */
 const TARGET_POINTS = {
-  accio: new THREE.Vector3(-2.05, 0.7, 1.35),
-  serpensortia: new THREE.Vector3(0.9, 0.1, 2.0),
-  slugulas_eructo: new THREE.Vector3(2.35, 0.35, 0.7),
-  reducto: new THREE.Vector3(2.35, 0.42, -0.5),
-  vipera_evanesca: new THREE.Vector3(0.9, 0.2, 2.0),
-  finite_incantatem: new THREE.Vector3(0, 1.4, 0),
-  default: new THREE.Vector3(0, 1.25, 0),
+  accio: new THREE.Vector3(-2.3, 0.66, 0.3),
+  serpensortia: new THREE.Vector3(1.35, 0.1, -0.35),
+  slugulas_eructo: new THREE.Vector3(2.5, 0.33, 0.1),
+  reducto: new THREE.Vector3(2.4, 0.42, -1.3),
+  vipera_evanesca: new THREE.Vector3(1.35, 0.2, -0.35),
+  finite_incantatem: new THREE.Vector3(0, 1.5, -0.8),
+  default: new THREE.Vector3(0, 1.35, -0.8),
 };
 
 /**
  * 魔法が画面へ入ってくる地点（子どもが杖を振る側＝手前）。
  * 画面下の状態表示に光が隠れないよう、床すれすれではなく少し高い位置に置く。
  */
-const CAST_ORIGIN = new THREE.Vector3(0, 0.8, 3.5);
+const CAST_ORIGIN = new THREE.Vector3(0, 1.0, 3.0);
 
 function arcWindowShape(width, height) {
   const hw = width / 2;
@@ -104,10 +104,10 @@ function makeWindowTexture() {
   grad.addColorStop(1, '#6f9bff');
   g.fillStyle = grad;
   g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 90; i += 1) {
+  for (let i = 0; i < 110; i += 1) {
     const x = Math.random() * w;
-    const y = Math.random() * h * 0.8;
-    const r = Math.random() * 1.5 + 0.5;
+    const y = Math.random() * h * 0.85;
+    const r = Math.random() * 1.1 + 0.9;
     g.globalAlpha = 0.35 + Math.random() * 0.6;
     g.fillStyle = '#ffffff';
     g.beginPath();
@@ -136,14 +136,66 @@ function makeWindowTexture() {
   return tex;
 }
 
+/**
+ * 大広間の天井にかける夜空。
+ * 天井そのものが夜空になっている（魔法学校の大広間の見立て）。
+ */
+function makeSkyTexture() {
+  const w = 1024;
+  const h = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#070c26');     // 天頂（ほぼ画面に入らない）
+  grad.addColorStop(0.22, '#16245f');
+  grad.addColorStop(0.36, '#28408f');  // ここが画面に入る帯
+  grad.addColorStop(0.55, '#1a2a66');
+  grad.addColorStop(1, '#0b1030');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, w, h);
+
+  // 天の川のようなぼんやりした帯
+  const band = g.createLinearGradient(0, h * 0.18, w, h * 0.5);
+  band.addColorStop(0, 'rgba(140,170,255,0)');
+  band.addColorStop(0.5, 'rgba(170,195,255,0.18)');
+  band.addColorStop(1, 'rgba(140,170,255,0)');
+  g.fillStyle = band;
+  g.fillRect(0, h * 0.14, w, h * 0.4);
+
+  // 星はここには描かない。ドーム上でテクスチャが大きく引き伸ばされ、
+  // 点が四角いにじみになるため、別に 3D の点として置く（#buildStars）。
+
+  // 月
+  g.globalAlpha = 1;
+  const mx = w * 0.72;
+  const my = h * 0.30;
+  const halo = g.createRadialGradient(mx, my, 4, mx, my, 54);
+  halo.addColorStop(0, 'rgba(255,248,224,0.55)');
+  halo.addColorStop(1, 'rgba(255,248,224,0)');
+  g.fillStyle = halo;
+  g.beginPath();
+  g.arc(mx, my, 54, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#fff6dc';
+  g.beginPath();
+  g.arc(mx, my, 15, 0, Math.PI * 2);
+  g.fill();
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export class MagicScene {
   constructor(canvas, { lowPower = false } = {}) {
     this.canvas = canvas;
     this.lowPower = lowPower;
     this.clock = new THREE.Clock();
     this.effects = [];
-    this.pools = { snakes: [], treasures: [], slugs: [], debris: [], wands: [] };
-    this.visibleCounts = { snakes: 0, treasures: 0, slugs: 0, debris: 0, wands: 0 };
+    this.pools = { snakes: [], treasures: [], slugs: [], debris: [], swords: [] };
+    this.visibleCounts = { snakes: 0, treasures: 0, slugs: 0, debris: 0, swords: 0 };
     this.world = null;
     this.chargeUntil = 0;
     this.renderError = null;
@@ -162,13 +214,13 @@ export class MagicScene {
     this.scene.fog = new THREE.Fog(0x1a2250, 12, 30);
 
     this.camera = new THREE.PerspectiveCamera(BASE_FOV_DEG, BASE_ASPECT, 0.1, 60);
-    this.camera.position.set(0, 2.15, 6.9);
-    this.camera.lookAt(0, 1.15, 0.2);
+    this.camera.position.set(0, 2.5, 6.3);
+    this.camera.lookAt(0, 1.85, -0.6);
 
     this.#buildLights();
     this.#buildHall();
     this.#buildProps();
-    this.#buildWizard();
+    this.#buildArmor();
     this.#buildCastVisuals();
     this.resize();
   }
@@ -183,10 +235,10 @@ export class MagicScene {
     key.position.set(-3.5, 7, 6);
     this.scene.add(key);
 
-    // 呪文の対象（魔法使い）が大きく・明るく見えるようにする専用の明かり
+    // 呪文の対象（動くよろい）が大きく・明るく見えるようにする専用の明かり
     const subject = new THREE.SpotLight(0xfff0d0, 2.1, 16, Math.PI / 5, 0.55, 1.4);
-    subject.position.set(0.6, 6.2, 4.2);
-    subject.target.position.set(0, 1.0, 0);
+    subject.position.set(0.7, 6.0, 3.4);
+    subject.target.position.set(0, 1.1, -0.8);
     this.scene.add(subject);
     this.scene.add(subject.target);
 
@@ -219,27 +271,58 @@ export class MagicScene {
 
   #buildHall() {
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(40, 40),
+      new THREE.PlaneGeometry(60, 60),
       new THREE.MeshStandardMaterial({ map: makeFloorTexture(), roughness: 0.85, metalness: 0.05 }),
     );
     floor.rotation.x = -Math.PI / 2;
     this.scene.add(floor);
 
-    // 奥の壁
+    // 天井が夜空の大広間。壁と柱はここで途切れ、その上はぜんぶ空。
+    const skyMap = makeSkyTexture();
+    const sky = new THREE.Mesh(
+      new THREE.SphereGeometry(46, 32, 20),
+      new THREE.MeshBasicMaterial({ map: skyMap, side: THREE.BackSide, fog: false }),
+    );
+    this.scene.add(sky);
+    this.sky = sky;
+
+    // 金属に映り込む空。環境マップが無いと metalness の高い材質は真っ黒になる。
+    try {
+      skyMap.mapping = THREE.EquirectangularReflectionMapping;
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      pmrem.compileEquirectangularShader();
+      this.envRT = pmrem.fromEquirectangular(skyMap);
+      this.scene.environment = this.envRT.texture;
+      pmrem.dispose();
+    } catch (err) {
+      // 環境マップを作れない端末では、金属の見え方だけが地味になる（遊びは続けられる）
+      this.envError = err?.message || String(err);
+    }
+
+    const WALL_TOP = 4.6;
+
+    // 奥の壁（低くして、上を夜空にする）
     const wall = new THREE.Mesh(
-      new THREE.PlaneGeometry(26, 11),
+      new THREE.PlaneGeometry(26, WALL_TOP),
       new THREE.MeshStandardMaterial({ color: 0x2c3566, roughness: 0.95 }),
     );
-    wall.position.set(0, 5.5, -7);
+    wall.position.set(0, WALL_TOP / 2, -7);
     this.scene.add(wall);
 
-    // アーチ窓。窓の中に夜空を描いてある（壁の裏の星は壁に隠れて見えないため）。
+    // 壁の上端の飾り
+    const coping = new THREE.Mesh(
+      new THREE.BoxGeometry(26, 0.34, 0.6),
+      new THREE.MeshStandardMaterial({ color: 0x5d6697, roughness: 0.7, metalness: 0.15 }),
+    );
+    coping.position.set(0, WALL_TOP + 0.17, -6.85);
+    this.scene.add(coping);
+
+    // アーチ窓。窓の中にも夜空を描いてある（壁の裏は見えないため）。
     const skyTex = makeWindowTexture();
     const windowMat = new THREE.MeshBasicMaterial({ map: skyTex });
     const frameMat = new THREE.MeshStandardMaterial({ color: STONE, roughness: 0.75 });
     for (const x of [-4.6, 0, 4.6]) {
-      const winGeo = new THREE.ShapeGeometry(arcWindowShape(2.2, 5.2));
-      // 形に合わせてテクスチャを貼り直す
+      const winGeo = new THREE.ShapeGeometry(arcWindowShape(1.95, 3.5));
       winGeo.computeBoundingBox();
       const bb = winGeo.boundingBox;
       const uv = winGeo.attributes.position;
@@ -250,44 +333,94 @@ export class MagicScene {
       }
       winGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
       const win = new THREE.Mesh(winGeo, windowMat);
-      win.position.set(x, 1.1, -6.9);
+      win.position.set(x, 0.65, -6.9);
       this.scene.add(win);
 
-      const frame = new THREE.Mesh(new THREE.ShapeGeometry(arcWindowShape(2.6, 5.55)), frameMat);
-      frame.position.set(x, 0.98, -6.95);
+      const frame = new THREE.Mesh(new THREE.ShapeGeometry(arcWindowShape(2.3, 3.8)), frameMat);
+      frame.position.set(x, 0.55, -6.95);
       this.scene.add(frame);
     }
 
-    // 左右の列柱（奥行きを出す）
-    const colGeo = new THREE.CylinderGeometry(0.34, 0.4, 6.4, 12);
+    // 左右の列柱。天井が無いので、柱は空へ向かって途切れる。
+    const colGeo = new THREE.CylinderGeometry(0.34, 0.4, WALL_TOP, 12);
     const colMat = new THREE.MeshStandardMaterial({ color: 0x47507f, roughness: 0.85 });
-    const capGeo = new THREE.BoxGeometry(1.0, 0.26, 1.0);
+    const capGeo = new THREE.BoxGeometry(1.0, 0.3, 1.0);
     const capMat = new THREE.MeshStandardMaterial({ color: 0x5d6697, roughness: 0.7, metalness: 0.15 });
     for (const x of [-6.2, 6.2]) {
       for (const z of [-4.5, -1.5, 1.5]) {
         const col = new THREE.Mesh(colGeo, colMat);
-        col.position.set(x, 3.2, z);
+        col.position.set(x, WALL_TOP / 2, z);
         this.scene.add(col);
         const cap = new THREE.Mesh(capGeo, capMat);
-        cap.position.set(x, 6.5, z);
+        cap.position.set(x, WALL_TOP + 0.15, z);
         this.scene.add(cap);
       }
     }
 
-    // 浮遊する蝋燭
+    this.#buildStars();
+
+    // 浮遊する蝋燭。夜空を背に浮かぶので、ここが大広間らしさの要になる。
     this.candles = [];
-    const candleGeo = new THREE.SphereGeometry(0.055, 8, 6);
-    const candleMat = new THREE.MeshBasicMaterial({ color: 0xffd79a });
-    const candleCount = this.lowPower ? 8 : 14;
+    const candleGeo = new THREE.SphereGeometry(0.07, 8, 6);
+    const candleMat = new THREE.MeshBasicMaterial({ color: 0xffd79a, fog: false });
+    const stickGeo = new THREE.CylinderGeometry(0.025, 0.028, 0.26, 6);
+    const stickMat = new THREE.MeshStandardMaterial({ color: 0xf0e6cf, roughness: 0.8 });
+    const candleCount = this.lowPower ? 12 : 22;
     for (let i = 0; i < candleCount; i += 1) {
-      const c = new THREE.Mesh(candleGeo, candleMat);
-      const x = (Math.random() - 0.5) * 11;
-      const y = 3.6 + Math.random() * 2.4;
-      const z = -5.5 + Math.random() * 6;
-      c.position.set(x, y, z);
-      this.scene.add(c);
-      this.candles.push({ mesh: c, baseY: y, phase: Math.random() * Math.PI * 2, speed: 0.4 + Math.random() * 0.4 });
+      const group = new THREE.Group();
+      const stick = new THREE.Mesh(stickGeo, stickMat);
+      stick.position.y = -0.17;
+      group.add(stick);
+      const flame = new THREE.Mesh(candleGeo, candleMat);
+      group.add(flame);
+      const x = (Math.random() - 0.5) * 16;
+      const y = 3.9 + Math.random() * 3.4;
+      // 手前に置くとカメラに寄りすぎて巨大な白い塊に見えるので、奥の帯に収める
+      const z = -6.5 + Math.random() * 5.2;
+      group.position.set(x, y, z);
+      this.scene.add(group);
+      this.candles.push({ mesh: group, flame, baseY: y, phase: Math.random() * Math.PI * 2, speed: 0.35 + Math.random() * 0.4 });
     }
+  }
+
+  /**
+   * 夜空の星。テクスチャに描くとドーム上で引き伸ばされて四角くにじむので、
+   * 点として置いて、どの距離でも粒のまま見えるようにする。
+   */
+  #buildStars() {
+    const count = this.lowPower ? 420 : 900;
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const radius = 38;
+    for (let i = 0; i < count; i += 1) {
+      // 画面に入りやすい高さに多めに散らす
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(1 - Math.random() * 0.95);
+      const r = radius * (0.85 + Math.random() * 0.15);
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = Math.abs(r * Math.cos(phi)) * 0.75 + 5;
+      positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+      const warm = Math.random() < 0.15;
+      colors[i * 3] = 1;
+      colors[i * 3 + 1] = warm ? 0.9 : 0.97;
+      colors[i * 3 + 2] = warm ? 0.76 : 1;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    this.stars = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({
+        size: 0.42,
+        sizeAttenuation: true,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.95,
+        fog: false,
+        depthWrite: false,
+      }),
+    );
+    this.scene.add(this.stars);
   }
 
   #buildProps() {
@@ -296,14 +429,14 @@ export class MagicScene {
       new THREE.CylinderGeometry(0.6, 0.68, 0.5, 14),
       new THREE.MeshStandardMaterial({ color: 0x5a63a0, roughness: 0.75 }),
     );
-    plinth.position.set(-2.05, 0.25, 1.35);
+    plinth.position.set(-2.3, 0.25, 0.3);
     this.scene.add(plinth);
     const rim = new THREE.Mesh(
       new THREE.TorusGeometry(0.62, 0.045, 8, 24),
       new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.3, metalness: 0.8 }),
     );
     rim.rotation.x = Math.PI / 2;
-    rim.position.set(-2.05, 0.51, 1.35);
+    rim.position.set(-2.3, 0.51, 0.3);
     this.scene.add(rim);
     this.treasurePlinth = plinth;
 
@@ -318,7 +451,7 @@ export class MagicScene {
       const mesh = new THREE.Mesh(treasureGeos[i % 3], treasureMat);
       const angle = (i / 10) * Math.PI * 2;
       const radius = 0.3 + (i % 3) * 0.09;
-      mesh.position.set(-2.05 + Math.cos(angle) * radius, 0.64 + Math.floor(i / 5) * 0.24, 1.35 + Math.sin(angle) * radius * 0.8);
+      mesh.position.set(-2.3 + Math.cos(angle) * radius, 0.64 + Math.floor(i / 5) * 0.24, 0.3 + Math.sin(angle) * radius * 0.8);
       mesh.visible = false;
       this.scene.add(mesh);
       this.pools.treasures.push({ mesh, home: mesh.position.clone(), phase: Math.random() * Math.PI * 2 });
@@ -328,9 +461,9 @@ export class MagicScene {
     this.rockMeshes = [];
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x7f8599, roughness: 1, flatShading: true });
     const rockPositions = [
-      new THREE.Vector3(2.35, 0.42, -0.5),
-      new THREE.Vector3(3.3, 0.34, -1.6),
-      new THREE.Vector3(1.75, 0.3, -2.0),
+      new THREE.Vector3(2.4, 0.42, -1.3),
+      new THREE.Vector3(3.4, 0.34, -2.3),
+      new THREE.Vector3(1.85, 0.3, -2.7),
     ];
     rockPositions.forEach((pos, i) => {
       const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42 - i * 0.05, 0), rockMat);
@@ -373,14 +506,14 @@ export class MagicScene {
       new THREE.CylinderGeometry(0.44, 0.34, 0.3, 14, 1, true),
       new THREE.MeshStandardMaterial({ color: 0xa9743f, roughness: 0.85, side: THREE.DoubleSide }),
     );
-    bucket.position.set(2.35, 0.15, 0.7);
+    bucket.position.set(2.5, 0.15, 0.1);
     this.scene.add(bucket);
     const bucketBottom = new THREE.Mesh(
       new THREE.CircleGeometry(0.34, 14),
       new THREE.MeshStandardMaterial({ color: 0x7d5329, roughness: 0.9 }),
     );
     bucketBottom.rotation.x = -Math.PI / 2;
-    bucketBottom.position.set(2.35, 0.01, 0.7);
+    bucketBottom.position.set(2.5, 0.01, 0.1);
     this.scene.add(bucketBottom);
     this.bucket = bucket;
 
@@ -390,22 +523,28 @@ export class MagicScene {
       const mesh = new THREE.Mesh(slugGeo, slugMat);
       mesh.scale.set(1.6, 0.8, 1);
       const a = (i / 10) * Math.PI * 2;
-      mesh.position.set(2.35 + Math.cos(a) * 0.2, 0.24 + Math.floor(i / 5) * 0.11, 0.7 + Math.sin(a) * 0.2);
+      mesh.position.set(2.5 + Math.cos(a) * 0.2, 0.24 + Math.floor(i / 5) * 0.11, 0.1 + Math.sin(a) * 0.2);
       mesh.visible = false;
       this.scene.add(mesh);
       this.pools.slugs.push({ mesh });
     }
 
-    // 床に落ちた杖
-    const wandGeo = new THREE.CylinderGeometry(0.022, 0.03, 0.62, 6);
-    const wandMat = new THREE.MeshStandardMaterial({ color: 0xc09454, roughness: 0.6 });
+    // 床に落ちた剣
+    const bladeGeo = new THREE.BoxGeometry(0.07, 0.72, 0.022);
+    const guardGeo = new THREE.BoxGeometry(0.26, 0.05, 0.05);
+    const swordSteel = new THREE.MeshStandardMaterial({ color: 0xd3dbee, roughness: 0.3, metalness: 0.72, envMapIntensity: 1.5 });
+    const swordGold = new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.25, metalness: 0.9 });
     for (let i = 0; i < 3; i += 1) {
-      const mesh = new THREE.Mesh(wandGeo, wandMat);
-      mesh.rotation.set(Math.PI / 2, 0, 0.5 + i * 0.4);
-      mesh.position.set(-0.6 - i * 0.35, 0.03, 1.1 + i * 0.2);
-      mesh.visible = false;
-      this.scene.add(mesh);
-      this.pools.wands.push({ mesh });
+      const group = new THREE.Group();
+      const blade = new THREE.Mesh(bladeGeo, swordSteel);
+      blade.position.y = 0.36;
+      group.add(blade);
+      group.add(new THREE.Mesh(guardGeo, swordGold));
+      group.rotation.set(Math.PI / 2, 0, 0.6 + i * 0.5);
+      group.position.set(-1.1 - i * 0.4, 0.035, 0.35 + i * 0.25);
+      group.visible = false;
+      this.scene.add(group);
+      this.pools.swords.push({ mesh: group });
     }
 
     // 盾（Protego）。要件どおり盾本体は青。発動の光の色とは別の項目。
@@ -413,14 +552,14 @@ export class MagicScene {
       new THREE.SphereGeometry(1.75, 22, 14, 0, Math.PI * 2, 0, Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: 0x5b8cff, transparent: true, opacity: 0.0, side: THREE.DoubleSide }),
     );
-    this.shield.position.set(0, 0.02, 0.2);
+    this.shield.position.set(0, 0.02, -0.8);
     this.scene.add(this.shield);
     this.shieldEdge = new THREE.Mesh(
       new THREE.TorusGeometry(1.75, 0.03, 8, 40),
       new THREE.MeshBasicMaterial({ color: 0x9dbcff, transparent: true, opacity: 0 }),
     );
     this.shieldEdge.rotation.x = Math.PI / 2;
-    this.shieldEdge.position.set(0, 0.03, 0.2);
+    this.shieldEdge.position.set(0, 0.03, -0.8);
     this.scene.add(this.shieldEdge);
 
     // 柔らかい着地点（Stupefy / Everte Statum のときだけ見せる）
@@ -428,123 +567,134 @@ export class MagicScene {
       new THREE.CylinderGeometry(1.0, 1.0, 0.16, 18),
       new THREE.MeshStandardMaterial({ color: 0x7a63c4, roughness: 0.9 }),
     );
-    this.cushion.position.set(0, 0.08, -0.9);
+    this.cushion.position.set(0, 0.08, -1.9);
     this.cushion.visible = false;
     this.scene.add(this.cushion);
   }
 
-  #buildWizard() {
+  /**
+   * 人に作用する8呪文の対象。人型の魔法使いではなく、大広間を見回る「動くよろい」。
+   * 子ども自身が杖を振る側なので、画面の中に“自分の分身”を置かないための選択。
+   */
+  #buildArmor() {
     const g = new THREE.Group();
-    const robe = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.26, 0.56, 1.15, 14),
-      new THREE.MeshStandardMaterial({ color: 0x3b4bc4, roughness: 0.72 }),
-    );
-    robe.position.y = 0.575;
-    g.add(robe);
+    const steel = new THREE.MeshStandardMaterial({ color: 0xd3dbee, roughness: 0.3, metalness: 0.72, envMapIntensity: 1.5 });
+    const steelDark = new THREE.MeshStandardMaterial({ color: 0x98a2bd, roughness: 0.42, metalness: 0.65, envMapIntensity: 1.3 });
+    const gold = new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.25, metalness: 0.9 });
+    const slit = new THREE.MeshBasicMaterial({ color: 0x0a0f24 });
 
-    const trim = new THREE.Mesh(
-      new THREE.TorusGeometry(0.27, 0.035, 8, 20),
-      new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.4, metalness: 0.6 }),
-    );
-    trim.rotation.x = Math.PI / 2;
-    trim.position.y = 1.13;
-    g.add(trim);
+    // 胴（胸当て）
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.42, 0.72, 14), steel);
+    torso.position.y = 0.98;
+    g.add(torso);
+    const belt = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.045, 8, 22), gold);
+    belt.rotation.x = Math.PI / 2;
+    belt.position.y = 0.64;
+    g.add(belt);
 
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.175, 16, 12),
-      // 青い環境光で灰色に見えないよう、わずかに自発光させる
-      new THREE.MeshStandardMaterial({ color: 0xffd9b0, roughness: 0.55, emissive: 0x4a2c16, emissiveIntensity: 0.5 }),
-    );
-    head.position.y = 1.32;
-    g.add(head);
+    // 腰当て
+    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.34, 14, 1, true), steelDark);
+    skirt.position.y = 0.47;
+    g.add(skirt);
 
-    // 目。文字が読めない子でも「人がいる」「こちらを向いている」と分かるようにする
-    const eyeGeo = new THREE.SphereGeometry(0.028, 8, 8);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x241a10 });
-    for (const ex of [-0.062, 0.062]) {
-      const eye = new THREE.Mesh(eyeGeo, eyeMat);
-      eye.position.set(ex, 1.345, 0.155);
-      g.add(eye);
-    }
-    // 口（くすぐられたときに大きくなる）
-    this.mouth = new THREE.Mesh(
-      new THREE.SphereGeometry(0.032, 10, 8),
-      new THREE.MeshBasicMaterial({ color: 0x7a3328 }),
-    );
-    this.mouth.position.set(0, 1.265, 0.155);
-    this.mouth.scale.set(1.3, 0.7, 0.6);
-    g.add(this.mouth);
-
-    const hat = new THREE.Mesh(
-      new THREE.ConeGeometry(0.26, 0.5, 14),
-      new THREE.MeshStandardMaterial({ color: 0x2b36a0, roughness: 0.78 }),
-    );
-    hat.position.y = 1.68;
-    hat.rotation.z = 0.12;
-    g.add(hat);
-    const brim = new THREE.Mesh(
-      new THREE.CircleGeometry(0.34, 16),
-      new THREE.MeshStandardMaterial({ color: 0x2b36a0, roughness: 0.78, side: THREE.DoubleSide }),
-    );
-    brim.rotation.x = -Math.PI / 2;
-    brim.position.y = 1.44;
-    g.add(brim);
-
-    // 腕は「肩を基点に下へ垂らす」。肩のグループを回すことで、手が必ず腕の先に付く。
-    const ARM_LENGTH = 0.58;
-    const armMat = new THREE.MeshStandardMaterial({ color: 0x4555d4, roughness: 0.74 });
-    const armGeo = new THREE.CylinderGeometry(0.06, 0.05, ARM_LENGTH, 8);
-    const handGeo = new THREE.SphereGeometry(0.065, 10, 8);
-    const handMat = new THREE.MeshStandardMaterial({ color: 0xffd9b0, roughness: 0.55, emissive: 0x4a2c16, emissiveIntensity: 0.4 });
-    this.hands = {};
+    // 脚
     for (const side of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.56, 9), steelDark);
+      leg.position.set(side * 0.17, 0.28, 0);
+      g.add(leg);
+      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 0.3), steel);
+      boot.position.set(side * 0.17, 0.06, 0.04);
+      g.add(boot);
+    }
+
+    // 首と兜
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.14, 10), steelDark);
+    neck.position.y = 1.4;
+    g.add(neck);
+
+    const helmet = new THREE.Group();
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 12), steel);
+    skull.scale.set(1, 1.05, 0.95);
+    helmet.add(skull);
+    const face = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.15, 0.24, 12), steelDark);
+    face.position.set(0, -0.14, 0.02);
+    helmet.add(face);
+    // 覗き穴。ここが「顔」として読めるようにする。
+    const eyeSlit = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.045, 0.04), slit);
+    eyeSlit.position.set(0, -0.03, 0.18);
+    helmet.add(eyeSlit);
+    // 兜の飾り（金のとさか）
+    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.16, 0.34), gold);
+    crest.position.set(0, 0.2, -0.02);
+    helmet.add(crest);
+    helmet.position.set(0, 1.62, 0);
+    g.add(helmet);
+    this.armorHelmet = helmet;
+
+    // 肩当てと腕。肩を基点にしたグループで、手が必ず腕の先に付く。
+    const ARM_LENGTH = 0.5;
+    this.armorArms = {};
+    for (const side of [-1, 1]) {
+      const pauldron = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10, 0, Math.PI * 2, 0, Math.PI / 1.7), steel);
+      pauldron.position.set(side * 0.36, 1.28, 0);
+      pauldron.rotation.z = side * 0.3;
+      g.add(pauldron);
+
       const shoulder = new THREE.Group();
-      shoulder.position.set(side * 0.27, 1.04, 0.06);
-      shoulder.rotation.set(-0.16, 0, side * 0.34); // 体から少し離して下へ垂らす
-      const arm = new THREE.Mesh(armGeo, armMat);
+      shoulder.position.set(side * 0.36, 1.22, 0.02);
+      shoulder.rotation.set(-0.12, 0, side * 0.26);
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, ARM_LENGTH, 9), steelDark);
       arm.position.y = -ARM_LENGTH / 2;
       shoulder.add(arm);
-      const hand = new THREE.Mesh(handGeo, handMat);
-      hand.position.y = -ARM_LENGTH;
-      shoulder.add(hand);
+      const gauntlet = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.17), steel);
+      gauntlet.position.y = -ARM_LENGTH;
+      shoulder.add(gauntlet);
       g.add(shoulder);
-      this.hands[side === -1 ? 'left' : 'right'] = shoulder;
+      this.armorArms[side === -1 ? 'left' : 'right'] = shoulder;
     }
 
-    // 手に持つ杖（Expelliarmus で消える）。右手のグループに入れて、手の先から生えるようにする。
-    this.heldWand = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.018, 0.026, 0.52, 6),
-      new THREE.MeshStandardMaterial({ color: 0xd9ab63, roughness: 0.5 }),
-    );
-    this.heldWand.position.set(0.02, -0.62, 0.2);
-    this.heldWand.rotation.set(-1.0, 0, 0);
-    this.hands.right.add(this.heldWand);
+    // 右手の剣（Expelliarmus で飛ぶ）
+    this.heldSword = new THREE.Group();
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.72, 0.022), steel);
+    blade.position.y = 0.38;
+    this.heldSword.add(blade);
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.05, 0.05), gold);
+    this.heldSword.add(guard);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.17, 8), steelDark);
+    grip.position.y = -0.1;
+    this.heldSword.add(grip);
+    this.heldSword.position.set(0.04, -ARM_LENGTH - 0.02, 0.12);
+    this.heldSword.rotation.set(-0.42, 0, -0.5);
+    this.armorArms.right.add(this.heldSword);
 
-    // 控えめなけがの表現（小さな淡い光。傷の描写はしない）
-    this.injuryMark = new THREE.Mesh(
-      new THREE.SphereGeometry(0.075, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffb3c9, transparent: true, opacity: 0.55 }),
+    // へこみ（Everte Statum でできて Episkey で直る）。控えめな表現にする。
+    this.dentMark = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0x4d5468, roughness: 0.9, metalness: 0.3 }),
     );
-    this.injuryMark.position.set(-0.42, 0.52, 0.16);
-    this.injuryMark.visible = false;
-    g.add(this.injuryMark);
+    this.dentMark.scale.set(1, 1, 0.4);
+    this.dentMark.position.set(-0.14, 1.02, 0.3);
+    this.dentMark.visible = false;
+    g.add(this.dentMark);
 
-    // 笑っているときの印（くすぐり）
+    // くすぐられているときの印
     this.laughMark = new THREE.Group();
-    const noteMat = new THREE.MeshBasicMaterial({ color: 0xffe89a });
+    const noteMat = new THREE.MeshBasicMaterial({ color: 0xffe89a, fog: false });
     for (let i = 0; i < 3; i += 1) {
       const note = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), noteMat);
-      note.position.set(0.22 + i * 0.16, 1.62 + i * 0.12, 0.1);
+      note.position.set(0.3 + i * 0.17, 1.85 + i * 0.13, 0.08);
       this.laughMark.add(note);
     }
     this.laughMark.visible = false;
     g.add(this.laughMark);
 
-    g.position.set(0, 0, 0.2);
-    g.scale.setScalar(1.18);
+    g.position.set(0, 0, -0.8);
+    g.scale.setScalar(1.22);
     this.scene.add(g);
-    this.wizard = g;
-    this.wizardBaseZ = 0.2;
+    this.armor = g;
+    this.armorBaseZ = -0.8;
+    /** 0 = きちんと立っている / 1 = 崩れ落ちている */
+    this.collapse = 0;
   }
 
   #buildCastVisuals() {
@@ -637,8 +787,8 @@ export class MagicScene {
       if (active) {
         const seed = world.snakes[i].seed ?? i / 10;
         const angle = seed * Math.PI * 2;
-        const radius = 0.55 + (seed % 0.5) * 1.1;
-        s.home.set(0.75 + Math.cos(angle) * radius, 0.1, 2.15 + Math.sin(angle) * radius * 0.4);
+        const radius = 0.7 + (seed % 0.5) * 1.5;
+        s.home.set(1.35 + Math.cos(angle) * radius * 0.9, 0.1, -0.35 + Math.sin(angle) * radius * 0.5);
         s.phase = seed * Math.PI * 2;
       }
     });
@@ -664,19 +814,19 @@ export class MagicScene {
       }
       if (!active) d.placed = false;
     });
-    // 落ちた杖
-    this.pools.wands.forEach((w, i) => {
-      w.mesh.visible = i < world.droppedWands.length;
+    // 落ちた剣
+    this.pools.swords.forEach((item, i) => {
+      item.mesh.visible = i < world.droppedSwords.length;
     });
     // 盾
     const shieldOn = world.shield.active;
     this.shieldTargetOpacity = shieldOn ? Math.min(0.42, 0.18 + world.shield.level * 0.05) : 0;
     this.shieldTargetScale = shieldOn ? Math.min(1.18, 1 + world.shield.level * 0.03) : 1;
-    // 魔法使い
-    this.heldWand.visible = world.wizard.holdsWand;
-    this.injuryMark.visible = world.wizard.injured;
-    this.laughMark.visible = world.wizard.tickling;
-    this.cushion.visible = world.wizard.onSoftLanding;
+    // よろい
+    this.heldSword.visible = world.armor.holdsSword;
+    this.dentMark.visible = world.armor.dented;
+    this.laughMark.visible = world.armor.tickling;
+    this.cushion.visible = world.armor.onSoftLanding;
   }
 
   /** 発動待ち時間中の「ためる」表示。登録色はまだ出さない。 */
@@ -770,7 +920,8 @@ export class MagicScene {
     }
     // 浮遊する蝋燭
     for (const c of this.candles) {
-      c.mesh.position.y = c.baseY + Math.sin(t * c.speed + c.phase) * 0.12;
+      c.mesh.position.y = c.baseY + Math.sin(t * c.speed + c.phase) * 0.14;
+      c.flame.scale.setScalar(1 + Math.sin(t * 3.4 + c.phase) * 0.1);
     }
 
     // 宝物のゆっくりした回転
@@ -781,7 +932,7 @@ export class MagicScene {
     });
 
     // ヘビの蛇行
-    const speed = this.world ? this.world.wizard.speedFactor : 1;
+    const speed = this.world ? this.world.armor.speedFactor : 1;
     this.pools.snakes.forEach((s) => {
       if (!s.group.visible) return;
       s.group.position.copy(s.home);
@@ -809,29 +960,40 @@ export class MagicScene {
       this.shieldEdge.scale.setScalar(scale);
     }
 
-    // 魔法使いの姿勢
+    // よろいの姿勢
     if (this.world) {
-      const wz = this.world.wizard;
-      const targetZ = this.wizardBaseZ + wz.offsetZ;
-      this.wizard.position.z += (targetZ - this.wizard.position.z) * Math.min(1, dt * 4);
-      if (!wz.conscious) {
-        // 柔らかい場所に横たわる
-        this.wizard.rotation.x += (-Math.PI / 2.2 - this.wizard.rotation.x) * Math.min(1, dt * 4);
-        this.wizard.position.y += (0.42 - this.wizard.position.y) * Math.min(1, dt * 4);
-        this.wizard.rotation.z += (0 - this.wizard.rotation.z) * Math.min(1, dt * 5);
-      } else {
-        this.wizard.rotation.x += (0 - this.wizard.rotation.x) * Math.min(1, dt * 4);
-        this.wizard.position.y += (Math.sin(t * 1.2) * 0.02 - this.wizard.position.y) * Math.min(1, dt * 4);
-        const wiggle = wz.tickling ? Math.sin(t * 9) * 0.1 : 0;
-        this.wizard.rotation.z += (wiggle - this.wizard.rotation.z) * Math.min(1, dt * 8);
+      const ar = this.world.armor;
+      const targetZ = this.armorBaseZ + ar.offsetZ;
+      this.armor.position.z += (targetZ - this.armor.position.z) * Math.min(1, dt * 4);
+
+      // 崩れ具合をなだらかに追従させる（0 = 立っている / 1 = 崩れ落ちている）
+      const wantCollapse = ar.standing ? 0 : 1;
+      this.collapse += (wantCollapse - this.collapse) * Math.min(1, dt * 5);
+      const c = this.collapse;
+
+      // 見回りの歩き。遅くされると揺れも遅くなる。
+      const patrol = ar.standing ? Math.sin(t * 1.5 * ar.speedFactor) : 0;
+      const rattle = ar.tickling ? Math.sin(t * 22) * 0.045 : 0;
+
+      this.armor.rotation.x = -c * (Math.PI / 2.3);
+      this.armor.position.y = -c * 0.12 + (1 - c) * Math.abs(patrol) * 0.03;
+      this.armor.rotation.z = (1 - c) * (patrol * 0.045 + rattle);
+      this.armor.position.x = rattle * 1.6;
+
+      // 兜がごろんと外れる
+      this.armorHelmet.position.set(c * 0.42, 1.62 - c * 0.95, c * 0.5);
+      this.armorHelmet.rotation.set(c * 2.2, c * 1.1, c * 0.7);
+
+      // 腕が垂れる
+      for (const [side, group] of [[-1, this.armorArms.left], [1, this.armorArms.right]]) {
+        const swing = ar.standing ? Math.sin(t * 1.5 * ar.speedFactor + (side > 0 ? Math.PI : 0)) * 0.12 : 0;
+        group.rotation.x = -0.12 + swing - c * 0.5;
+        group.rotation.z = side * (0.26 + c * 0.5);
       }
-      if (this.mouth) {
-        const open = wz.tickling ? 1 + Math.abs(Math.sin(t * 9)) * 1.1 : 1;
-        this.mouth.scale.set(1.3 * open, 0.7 * open, 0.6);
-      }
+
       if (this.laughMark.visible) {
         this.laughMark.children.forEach((n, i) => {
-          n.position.y = 1.62 + i * 0.12 + Math.sin(t * 3 + i) * 0.06;
+          n.position.y = 1.85 + i * 0.13 + Math.sin(t * 3 + i) * 0.06;
         });
       }
     }
@@ -928,6 +1090,7 @@ export class MagicScene {
   }
 
   dispose() {
+    if (this.envRT) this.envRT.dispose();
     this.renderer.dispose();
   }
 }

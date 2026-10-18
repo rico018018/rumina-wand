@@ -22,7 +22,7 @@ const TALLY_ICONS = [
   { key: 'slugs', icon: '🐌', label: 'ナメクジ' },
   { key: 'rocksLeft', icon: '🪨', label: 'いわ' },
   { key: 'debris', icon: '✨', label: 'はへん' },
-  { key: 'wandsOnFloor', icon: '🪄', label: 'おちた つえ' },
+  { key: 'swordsOnFloor', icon: '⚔️', label: 'おちた けん' },
 ];
 
 const app = new WandApp({ canvas: $('world') });
@@ -58,6 +58,69 @@ function paintTimer() {
 }
 requestAnimationFrame(paintTimer);
 
+// --- 遊び画面のただ1つのボタン ---
+const castBtn = $('castBtn');
+const castBtnIcon = $('castBtnIcon');
+const castBtnText = $('castBtnText');
+const castBtnArc = $('castBtnArc');
+const CAST_RING = 2 * Math.PI * 54;
+/** ボタン入力モードで、聞き取りを始めた時刻（残り時間の輪に使う） */
+let listenStartedAt = 0;
+
+castBtn.addEventListener('click', () => {
+  if (castBtn.dataset.state === 'disabled') return;
+  if (app.status.listening) {
+    app.stopListening();
+    return;
+  }
+  listenStartedAt = Date.now();
+  app.startListening();
+});
+
+function paintCastButton(status) {
+  if (!app.support.hasApi) {
+    castBtn.dataset.state = 'disabled';
+    castBtnIcon.textContent = '🚫';
+    castBtnText.textContent = 'おとが つかえない';
+    castBtn.setAttribute('aria-label', 'このブラウザは音声認識に対応していません。保護者パネルの手動ボタンで遊べます');
+    return;
+  }
+  const waiting = status.childMode === 'waiting' || status.childMode === 'casting';
+  if (waiting) {
+    castBtn.dataset.state = 'waiting';
+    castBtnIcon.textContent = '✨';
+    castBtnText.textContent = 'まってね';
+  } else if (status.listening) {
+    castBtn.dataset.state = 'listening';
+    castBtnIcon.textContent = '👂';
+    castBtnText.textContent = 'きいてるよ';
+  } else {
+    castBtn.dataset.state = 'idle';
+    castBtnIcon.textContent = '🪄';
+    castBtnText.textContent = 'じゅもんを いう';
+  }
+  castBtn.setAttribute('aria-label', castBtnText.textContent);
+}
+
+/** ボタンの輪で、あと何秒聞いているかを示す */
+function paintCastRing() {
+  const state = castBtn.dataset.state;
+  let progress = 0;
+  if (state === 'listening' && app.settings.inputMode === 'push' && listenStartedAt) {
+    const elapsed = Date.now() - listenStartedAt;
+    progress = Math.max(0, 1 - elapsed / app.settings.pushWindowMs);
+  } else if (state === 'waiting') {
+    const remaining = app.speech.suppressRemainingMs();
+    const total = app.settings.castDelayMs + 1400;
+    progress = total > 0 ? Math.min(1, remaining / total) : 0;
+  } else if (state === 'listening') {
+    progress = 1; // 常時待ち受けは満ちたままにする
+  }
+  castBtnArc.style.strokeDashoffset = String(CAST_RING * (1 - progress));
+  requestAnimationFrame(paintCastRing);
+}
+requestAnimationFrame(paintCastRing);
+
 const tallyEl = $('tally');
 function buildTally() {
   tallyEl.innerHTML = '';
@@ -89,6 +152,7 @@ function paintTally(summary) {
 
 app.onStatus((status) => {
   paintWand(status);
+  paintCastButton(status);
   $('parentNote').textContent = status.parentNote || '';
   $('interimLine').textContent = status.interim ? `認識中: ${status.interim}` : '—';
 });
@@ -115,12 +179,16 @@ function setPanel(open) {
 }
 panelToggle.addEventListener('click', () => setPanel(panel.hidden));
 $('panelClose').addEventListener('click', () => setPanel(false));
-// 最初は開いた状態（保護者が設定してから遊び始める）
-setPanel(true);
+// 最初は遊び画面を見せる。設定は右上の歯車から開く。
+// （テレビに映すので、最初に出るのは設定一覧ではなく魔法の世界にする）
+setPanel(false);
 
 // ---------------------------------------------------------------- あそぶ
 
-$('btnStart').addEventListener('click', () => app.startListening());
+$('btnStart').addEventListener('click', () => {
+  listenStartedAt = Date.now();
+  app.startListening();
+});
 $('btnStop').addEventListener('click', () => app.stopListening());
 $('btnResetWorld').addEventListener('click', () => {
   if (confirm('世界を初期状態に戻します。色設定は消えません。よろしいですか？')) app.resetWorld();
@@ -622,7 +690,8 @@ $('limitations').innerHTML = `
   <h3>遊びの初期案（要件書7章の未指定部分）</h3>
   <ul>
     <li>増える上限：たからもの ${CAPS.treasures}個 / ヘビ ${CAPS.snakes}匹 / ナメクジ ${CAPS.slugs}匹。壊せる岩は ${INITIAL_ROCK_COUNT}個。</li>
-    <li>Everte Statum で小さなすりきずができ、Episkey の対象になります（傷の表現は控えめ）。</li>
+    <li>人に作用する8呪文の対象は、大広間に立つ<strong>動くよろい</strong>です（子ども自身が杖を振る側なので、画面の中に分身を置いていません）。</li>
+    <li>Everte Statum で小さなへこみができ、Episkey の対象になります（表現は控えめ）。</li>
     <li>くすぐり・鈍足は有限時間で元に戻り、初期化でも解除されます。</li>
     <li>第1段階の音声は ${PHASE1_SPELL_IDS.join(' / ')} の3呪文です。手動ボタンは14呪文すべて使えます。</li>
   </ul>`;

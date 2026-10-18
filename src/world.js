@@ -42,23 +42,24 @@ export function createInitialWorld() {
     treasures: [],
     slugs: [],
     debris: [],
-    droppedWands: [],
+    droppedSwords: [],
     rocks: Array.from({ length: INITIAL_ROCK_COUNT }, (_, i) => ({
       id: `rock-${i + 1}`,
       broken: false,
       slot: i,
     })),
     shield: { active: false, level: 0 },
-    wizard: {
-      conscious: true,
-      injured: false,
-      tickling: false,
+    // 人に作用する8呪文の対象。人型ではなく、大広間に立つ「動くよろい」。
+    armor: {
+      standing: true,      // Stupefy で崩れ、Rennervate で立ち上がる
+      dented: false,       // Everte Statum でへこみ、Episkey で直る
+      tickling: false,     // Rictusempra
       tickleUntil: null,
-      speedFactor: 1,
+      speedFactor: 1,      // Impedimenta（見回りの歩き）
       slowUntil: null,
-      offsetZ: 0,
+      offsetZ: 0,          // Everte Statum
       onSoftLanding: false,
-      holdsWand: true,
+      holdsSword: true,    // Expelliarmus で剣が飛ぶ
     },
   };
 }
@@ -76,10 +77,10 @@ function atCap(message) {
   return { status: 'at_cap', message, events: [] };
 }
 
-/** 気絶中に実行すると不整合になる呪文 */
-function requiresConscious(world, what) {
-  if (world.wizard.conscious) return null;
-  return noTarget(`まほうつかいは ねているよ。${what}`);
+/** 崩れている間に実行すると不整合になる呪文 */
+function requiresStanding(world, what) {
+  if (world.armor.standing) return null;
+  return noTarget(`よろいは くずれているよ。${what}`);
 }
 
 /**
@@ -96,7 +97,7 @@ function requiresConscious(world, what) {
 export function applySpell(world, spellId, options = {}) {
   const now = typeof options.now === 'number' ? options.now : Date.now();
   tickWorld(world, now);
-  const w = world.wizard;
+  const a = world.armor;
   let result;
 
   switch (spellId) {
@@ -148,66 +149,66 @@ export function applySpell(world, spellId, options = {}) {
     }
 
     case 'stupefy': {
-      if (!w.conscious) {
-        result = already('まほうつかいは もう ねているよ');
+      if (!a.standing) {
+        result = already('よろいは もう くずれているよ');
         break;
       }
-      w.conscious = false;
-      w.tickling = false;
-      w.tickleUntil = null;
-      w.onSoftLanding = true;
-      result = ok('まほうつかいが たおれた', [{ type: 'wizard_stunned' }]);
+      a.standing = false;
+      a.tickling = false;
+      a.tickleUntil = null;
+      a.onSoftLanding = true;
+      result = ok('よろいが がしゃんと くずれた', [{ type: 'armor_collapsed' }]);
       break;
     }
 
     case 'rennervate': {
-      if (w.conscious) {
-        // 元から起きている場合は回復の光のみ（世界は変えない）
-        result = noTarget('まほうつかいは もう おきているよ');
+      if (a.standing) {
+        // 元から立っている場合は回復の光のみ（世界は変えない）
+        result = noTarget('よろいは ちゃんと たっているよ');
         break;
       }
-      w.conscious = true;
-      w.onSoftLanding = false;
-      result = ok('まほうつかいが おきた', [{ type: 'wizard_revived' }]);
+      a.standing = true;
+      a.onSoftLanding = false;
+      result = ok('ぶひんが あつまって たちあがった', [{ type: 'armor_reassembled' }]);
       break;
     }
 
     case 'episkey': {
-      if (!w.injured) {
-        result = noTarget('けがは していないよ');
+      if (!a.dented) {
+        result = noTarget('へこんで いないよ');
         break;
       }
-      w.injured = false;
-      result = ok('けがが なおった', [{ type: 'wizard_healed' }]);
+      a.dented = false;
+      result = ok('へこみが もとに もどった', [{ type: 'armor_repaired' }]);
       break;
     }
 
     case 'expelliarmus': {
-      if (!w.holdsWand) {
-        result = noTarget('まほうつかいは つえを もっていないよ');
+      if (!a.holdsSword) {
+        result = noTarget('よろいは けんを もっていないよ');
         break;
       }
-      w.holdsWand = false;
-      const wand = { id: makeId('wand'), seed: Math.random() };
-      world.droppedWands.push(wand);
-      result = ok('つえが とんでいった', [{ type: 'wand_disarmed', id: wand.id }]);
+      a.holdsSword = false;
+      const sword = { id: makeId('sword'), seed: Math.random() };
+      world.droppedSwords.push(sword);
+      result = ok('けんが とんでいった', [{ type: 'sword_disarmed', id: sword.id }]);
       break;
     }
 
     case 'rictusempra': {
-      const blocked = requiresConscious(world, 'くすぐれないよ');
+      const blocked = requiresStanding(world, 'くすぐれないよ');
       if (blocked) {
         result = blocked;
         break;
       }
-      w.tickling = true;
-      w.tickleUntil = now + TICKLE_DURATION_MS;
-      result = ok('くすぐったくて わらっている', [{ type: 'wizard_tickled' }]);
+      a.tickling = true;
+      a.tickleUntil = now + TICKLE_DURATION_MS;
+      result = ok('がたがた ふるえて わらっている', [{ type: 'armor_tickled' }]);
       break;
     }
 
     case 'slugulas_eructo': {
-      const blocked = requiresConscious(world, 'ナメクジは でてこないよ');
+      const blocked = requiresStanding(world, 'ナメクジは でてこないよ');
       if (blocked) {
         result = blocked;
         break;
@@ -218,20 +219,20 @@ export function applySpell(world, spellId, options = {}) {
       }
       const slug = { id: makeId('slug'), seed: Math.random(), bornAt: now };
       world.slugs.push(slug);
-      result = ok('ナメクジが おけに おちた', [{ type: 'slug_added', id: slug.id }]);
+      result = ok('かぶとから ナメクジが おちた', [{ type: 'slug_added', id: slug.id }]);
       break;
     }
 
     case 'impedimenta': {
-      const blocked = requiresConscious(world, 'おそくできないよ');
+      const blocked = requiresStanding(world, 'おそくできないよ');
       if (blocked) {
         result = blocked;
         break;
       }
       // 延々と負値へ下げない。下限で止める。
-      w.speedFactor = Math.max(SLOW_FLOOR, w.speedFactor * SLOW_STEP);
-      w.slowUntil = now + SLOW_DURATION_MS;
-      result = ok('うごきが おそくなった', [{ type: 'wizard_slowed', speedFactor: w.speedFactor }]);
+      a.speedFactor = Math.max(SLOW_FLOOR, a.speedFactor * SLOW_STEP);
+      a.slowUntil = now + SLOW_DURATION_MS;
+      result = ok('みまわりが おそくなった', [{ type: 'armor_slowed', speedFactor: a.speedFactor }]);
       break;
     }
 
@@ -253,7 +254,7 @@ export function applySpell(world, spellId, options = {}) {
     }
 
     case 'finite_incantatem': {
-      // 全追加物・破片・盾・状態異常を除去し、人物・岩・宝物供給源を初期状態へ戻す。
+      // 全追加物・破片・盾・状態異常を除去し、よろい・岩・宝物供給源を初期状態へ戻す。
       const fresh = createInitialWorld();
       const revision = world.revision;
       for (const key of Object.keys(fresh)) world[key] = fresh[key];
@@ -263,16 +264,16 @@ export function applySpell(world, spellId, options = {}) {
     }
 
     case 'everte_statum': {
-      const blocked = requiresConscious(world, 'とばせないよ');
+      const blocked = requiresStanding(world, 'とばせないよ');
       if (blocked) {
         result = blocked;
         break;
       }
-      w.offsetZ = Math.max(KNOCKBACK_LIMIT, w.offsetZ - KNOCKBACK_STEP);
-      w.onSoftLanding = true;
-      // 初期案：吹き飛ばされると小さなすりきずができる（Episkey に対象を作るため）
-      w.injured = true;
-      result = ok('うしろへ とんでいった', [{ type: 'wizard_knocked_back', offsetZ: w.offsetZ }]);
+      a.offsetZ = Math.max(KNOCKBACK_LIMIT, a.offsetZ - KNOCKBACK_STEP);
+      a.onSoftLanding = true;
+      // 初期案：吹き飛ばされると小さなへこみができる（Episkey に対象を作るため）
+      a.dented = true;
+      result = ok('よろいが うしろへ とんでいった', [{ type: 'armor_knocked_back', offsetZ: a.offsetZ }]);
       break;
     }
 
@@ -289,16 +290,16 @@ export function applySpell(world, spellId, options = {}) {
  * @returns {{changed:boolean}}
  */
 export function tickWorld(world, now = Date.now()) {
-  const w = world.wizard;
+  const a = world.armor;
   let changed = false;
-  if (w.tickling && w.tickleUntil !== null && now >= w.tickleUntil) {
-    w.tickling = false;
-    w.tickleUntil = null;
+  if (a.tickling && a.tickleUntil !== null && now >= a.tickleUntil) {
+    a.tickling = false;
+    a.tickleUntil = null;
     changed = true;
   }
-  if (w.speedFactor !== 1 && w.slowUntil !== null && now >= w.slowUntil) {
-    w.speedFactor = 1;
-    w.slowUntil = null;
+  if (a.speedFactor !== 1 && a.slowUntil !== null && now >= a.slowUntil) {
+    a.speedFactor = 1;
+    a.slowUntil = null;
     changed = true;
   }
   return { changed };
@@ -318,7 +319,7 @@ export function worldSummary(world) {
     rocksLeft: world.rocks.filter((r) => !r.broken).length,
     debris: world.debris.length,
     shieldLevel: world.shield.active ? world.shield.level : 0,
-    wandsOnFloor: world.droppedWands.length,
-    wizard: { ...world.wizard },
+    swordsOnFloor: world.droppedSwords.length,
+    armor: { ...world.armor },
   };
 }

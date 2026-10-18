@@ -21,22 +21,34 @@
     <!-- 子ども向けの表示。文字が読めなくても、色・絵・形で分かるようにする -->
     <div class="hud" aria-live="polite">
 
+      <!-- いま世界にあるもの。絵の数で分かるようにする（画面の上に置き、対象に重ねない） -->
+      <div class="tally" id="tally"></div>
+
+      <div class="hud__bottom">
       <!-- 杖の形をした状態表示。杖先の色が、いまの呪文の登録色になる -->
       <div class="wandbar" id="wandbar" data-mode="idle">
         <span class="wandbar__tip" id="wandTip"></span>
         <span class="wandbar__shaft"></span>
-        <span class="wandbar__label" id="wandLabel">はじめる ボタンを おしてね</span>
+        <span class="wandbar__label" id="wandLabel">したの ボタンを おしてね</span>
         <svg class="wandbar__timer" id="wandTimer" viewBox="0 0 44 44" aria-hidden="true">
           <circle class="wandbar__timerTrack" cx="22" cy="22" r="18"></circle>
           <circle class="wandbar__timerArc" id="wandTimerArc" cx="22" cy="22" r="18"></circle>
         </svg>
       </div>
 
-      <!-- いま世界にあるもの。絵の数で分かるようにする -->
-      <div class="tally" id="tally"></div>
+      <!-- 遊び画面に置く、ただ1つの大きなボタン。これを押してから呪文を唱える -->
+      <button type="button" class="castbtn" id="castBtn" data-state="idle">
+        <svg class="castbtn__ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="castbtn__ringTrack" cx="60" cy="60" r="54"></circle>
+          <circle class="castbtn__ringArc" id="castBtnArc" cx="60" cy="60" r="54"></circle>
+        </svg>
+        <span class="castbtn__icon" id="castBtnIcon" aria-hidden="true">🪄</span>
+        <span class="castbtn__text" id="castBtnText">じゅもんを いう</span>
+      </button>
 
       <!-- 横画面のおすすめ（縦のときだけ出る） -->
       <p class="rotate-hint">よこむきに すると おおきく みえます</p>
+      </div>
     </div>
 
     <!-- 保護者向けパネルの開閉。テレビにも映るので小さく、端に置く -->

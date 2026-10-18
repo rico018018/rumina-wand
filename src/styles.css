@@ -74,12 +74,28 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: clamp(8px, 1.4vh, 18px);
   padding: clamp(10px, 2.2vmin, 28px);
-  padding-bottom: max(clamp(10px, 2.2vmin, 28px), env(safe-area-inset-bottom));
+  padding-top: max(clamp(10px, 2.2vmin, 28px), env(safe-area-inset-top));
+  padding-bottom: max(clamp(14px, 2.6vmin, 30px), env(safe-area-inset-bottom));
   transition: padding-right 180ms ease;
 }
+
+/* 下に置くもの（状態表示とボタン）をひとまとめにする */
+/*
+  下の段：状態表示は中央（テレビで離れても読めるように）、
+  大きなボタンは右下（スマホを横に持った親指の位置。画面中央の世界に重ねない）。
+*/
+.hud__bottom {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: clamp(8px, 1.6vmin, 18px);
+}
+.hud__bottom .wandbar { grid-column: 2; }
+.hud__bottom .castbtn { grid-column: 3; justify-self: end; }
+.hud__bottom .rotate-hint { grid-column: 1 / -1; }
 
 /*
   保護者パネルは遊び画面に重なる。開いている間は、子ども向けの表示が
@@ -162,6 +178,7 @@ body.panel-open .hud { padding-right: calc(min(460px, 100vw) + clamp(10px, 2.2vm
 /* --- いま世界にあるもの。絵の数で分かるようにする --- */
 .tally {
   align-self: center;
+  margin-right: clamp(60px, 9vmin, 96px);
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -181,6 +198,75 @@ body.panel-open .hud { padding-right: calc(min(460px, 100vw) + clamp(10px, 2.2vm
 }
 .tally__group[hidden] { display: none; }
 .tally__icon { filter: drop-shadow(0 1px 2px rgb(0 0 0 / .6)); }
+
+/* --- 遊び画面のただ1つのボタン。文字が読めなくても絵と色で分かるようにする --- */
+.castbtn {
+  position: relative;
+  align-self: center;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: clamp(92px, 17vmin, 150px);
+  aspect-ratio: 1;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, #2b3669 0%, #141c42 70%);
+  box-shadow: 0 6px 26px rgb(0 0 0 / .5), inset 0 0 0 2px color-mix(in srgb, var(--gold) 45%, transparent);
+  color: var(--parchment);
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 140ms ease, box-shadow 200ms ease;
+}
+.castbtn:active { transform: scale(.95); }
+
+.castbtn__ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+.castbtn__ringTrack { fill: none; stroke: color-mix(in srgb, var(--gold) 20%, transparent); stroke-width: 5; }
+.castbtn__ringArc {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 339.3;
+  stroke-dashoffset: 339.3;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke 200ms ease;
+}
+
+.castbtn__icon {
+  font-size: clamp(30px, 6vmin, 52px);
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / .55));
+  transform: translateY(-6%);
+}
+.castbtn__text {
+  position: absolute;
+  bottom: clamp(9px, 1.8vmin, 16px);
+  font-family: var(--face-child);
+  font-size: clamp(10px, 1.9vmin, 15px);
+  font-weight: 600;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  color: var(--parchment);
+}
+
+/* 押せるときは、ゆっくり呼吸して「ここを押す」と分かるようにする */
+.castbtn[data-state="idle"] {
+  box-shadow: 0 6px 26px rgb(0 0 0 / .5), inset 0 0 0 2px var(--gold), 0 0 0 0 color-mix(in srgb, var(--gold) 55%, transparent);
+  animation: callout 2.6s ease-in-out infinite;
+}
+.castbtn[data-state="listening"] { box-shadow: 0 6px 26px rgb(0 0 0 / .5), inset 0 0 0 2px #86e5a8; }
+.castbtn[data-state="listening"] .castbtn__ringArc { stroke: #86e5a8; }
+.castbtn[data-state="waiting"] { box-shadow: 0 6px 26px rgb(0 0 0 / .5), inset 0 0 0 2px #f0ead6; }
+.castbtn[data-state="waiting"] .castbtn__ringArc { stroke: #f0ead6; }
+.castbtn[data-state="disabled"] { opacity: .5; cursor: not-allowed; animation: none; }
+
+@keyframes callout {
+  0%, 100% { box-shadow: 0 6px 26px rgb(0 0 0 / .5), inset 0 0 0 2px var(--gold), 0 0 0 0 color-mix(in srgb, var(--gold) 50%, transparent); }
+  55%      { box-shadow: 0 6px 26px rgb(0 0 0 / .5), inset 0 0 0 2px var(--gold), 0 0 0 clamp(8px, 1.6vmin, 16px) color-mix(in srgb, var(--gold) 0%, transparent); }
+}
 
 .rotate-hint {
   display: none;
@@ -419,5 +505,6 @@ select { flex: 1 1 150px; }
 
 @media (prefers-reduced-motion: reduce) {
   .wandbar__tip, .wandbar[data-mode="casting"] .wandbar__tip, .wandbar[data-mode="failed"] .wandbar__tip { animation: none !important; }
+  .castbtn[data-state="idle"] { animation: none !important; }
   * { transition-duration: 1ms !important; }
 }
