@@ -276,7 +276,7 @@ function buildColorRows() {
     row.innerHTML = `
       <div class="colorrow__head">
         <span class="colorrow__swatch" data-role="swatch"></span>
-        <span class="colorrow__name">${spell.spelling}<span class="colorrow__kana">${spell.katakana}　${spell.effectSummary}</span></span>
+        <span class="colorrow__name">${spell.spelling}<span class="colorrow__kana">説明書の色: ${spell.defaultColorName}　/　${spell.effectSummary}</span></span>
         <span class="colorrow__badge" data-role="badge"></span>
       </div>
       <div class="colorrow__controls">
@@ -325,7 +325,7 @@ function buildColorRows() {
     });
     row.querySelector('[data-role="reset"]').addEventListener('click', () => {
       app.colors.resetSpell(spell.id);
-      setColorStatus(`${spell.spelling} の色を仮の初期色に戻しました。`);
+      setColorStatus(`${spell.spelling} の色を説明書の色（${spell.defaultColorName} ${spell.defaultColor}）に戻しました。`);
     });
     row.querySelector('[data-role="verified"]').addEventListener('change', (e) => {
       app.colors.setVerified(spell.id, e.target.checked);
@@ -360,12 +360,9 @@ function paintColorRow(spellId) {
   if (entry.verified) {
     badge.dataset.kind = 'verified';
     badge.textContent = '実物確認済み';
-  } else if (entry.isProvisional) {
-    badge.dataset.kind = 'default';
-    badge.textContent = '仮の色・変更可能';
   } else {
-    badge.dataset.kind = 'user';
-    badge.textContent = '利用者設定';
+    badge.dataset.kind = entry.source;
+    badge.textContent = entry.sourceLabel;
   }
 
   for (const b of row.querySelectorAll('[data-role="swatches"] button')) {
@@ -389,6 +386,7 @@ app.colors.onChange((changed) => {
   paintColorRows();
 });
 
+if (app.colors.migrationNote) setColorStatus(app.colors.migrationNote);
 if (app.colors.loadError) setColorStatus(app.colors.loadError);
 if (app.colors.saveError) setColorStatus(app.colors.saveError);
 
@@ -421,9 +419,9 @@ $('btnImportColors').addEventListener('click', () => {
 });
 
 $('btnResetAllColors').addEventListener('click', () => {
-  if (!confirm('14呪文すべての色を仮の初期色に戻します。実物確認済みの印も外れます。よろしいですか？')) return;
+  if (!confirm('14呪文すべての色を説明書の色に戻します。実物確認済みの印も外れます。よろしいですか？')) return;
   app.colors.resetAll();
-  setColorStatus('全呪文の色を仮の初期色に戻しました。');
+  setColorStatus('全呪文の色を説明書の色に戻しました。');
 });
 
 // ---------------------------------------------------------------- 診断
@@ -606,6 +604,7 @@ $('limitations').innerHTML = `
     <li><strong>常時待ち受け</strong>：iOS Safari で認識が1発話ごとに終了するか、自動の再開が許可されるか。診断の「自動の再開試行／再開の失敗」で測れます。</li>
     <li><strong>誤変換</strong>：架空の単語が一般語になる度合い。認識言語を en-US と ja-JP で比べてください。</li>
     <li><strong>テレビの回り込み</strong>：HDMI接続でスピーカーから出た効果音が誤発動を招くか。起きたら「直前の発動は誤発動だった」を押してください。</li>
+    <li><strong>説明書の色と実物のLEDが一致するか</strong>：杖を光らせてテレビと見比べ、ずれていたら色を調整し、合っていたら「実物の杖で確認した色」にチェックを入れてください。</li>
     <li><strong>玩具の杖の音</strong>：杖の効果音で誤発動するか。同じ手順で記録できます。</li>
     <li><strong>発熱と負荷</strong>：長時間でコマ落ちや発熱が出たら「軽量描画」を試してください。</li>
   </ul>
@@ -613,7 +612,8 @@ $('limitations').innerHTML = `
   <ul>
     <li>発音の<strong>採点</strong>はしていません。やっているのは認識テキストの許可リスト照合です。一致を「発音が正確」とは扱いません。</li>
     <li>ブラウザの音声認識は端末・ブラウザ・サービス依存です。<strong>無料・連続動作・オフライン・高精度のいずれも保証しません。</strong>認識はブラウザの機能が外部で処理する場合があります（このアプリは録音を保存・送信しません）。</li>
-    <li>14呪文の<strong>実物のLED色は不明</strong>です。初期色はすべて仮の色で、映画やゲームの色を実物として登録していません。</li>
+    <li>初期色は<strong>購入品の説明書に記載された色</strong>です（2026年10月18日に反映）。ただし説明書にあるのは色の名前なので、
+      「黄色」をどの黄色にするかという具体的な値は開発側の解釈です。<strong>実物のLEDを見比べての確認はまだです。</strong></li>
     <li>テレビと杖の<strong>発光色の完全な一致は保証しません</strong>。表示機器と明るさで見え方が変わります。</li>
     <li>色設定はこのブラウザの保存領域にあります。<strong>データ消去・端末やブラウザの変更では自動移行しません。</strong>「色設定を書き出す／読み込む」で移してください。</li>
   </ul>

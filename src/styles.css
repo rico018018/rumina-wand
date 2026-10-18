@@ -356,6 +356,7 @@ select { flex: 1 1 150px; }
 .colorrow__kana { display: block; font-size: 10px; color: var(--parchment-dim); }
 .colorrow__badge { font-size: 9.5px; padding: 2px 6px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
 .colorrow__badge[data-kind="default"] { color: var(--warn); }
+.colorrow__badge[data-kind="manual"] { color: var(--gold); }
 .colorrow__badge[data-kind="user"] { color: var(--glow); }
 .colorrow__badge[data-kind="verified"] { color: #86e5a8; }
 .colorrow__controls { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }

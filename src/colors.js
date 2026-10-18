@@ -4,8 +4,13 @@
  * 【前提】
  * - 実物の玩具の杖のLED色を検知・自動同期する機能ではありません。
  *   カメラ権限も使いません。保護者がテレビを見ながら近い色へ手で寄せるための設定です。
- * - 初期色はすべて「仮の色」です。実物確認済みかどうかは保護者が明示的に設定します。
- *   色を変更しただけでは自動的に確認済みになりません。
+ * - 色の出どころ（source）を3つに分けて扱います。
+ *     'manual'  購入品の説明書に書かれている色（いまの初期値）
+ *     'user'    保護者がこのアプリで設定した色
+ *     'default' 開発者が仮に割り振った色（いまは使っていない。古い保存データからの移行用）
+ * - source とは別に「実物のLEDを目で見て確認した」印（verified）を持ちます。
+ *   説明書に色名が書いてあることと、実物のLEDがその色に見えることは別です。
+ *   verified は保護者が明示的に入れたときだけ立ちます。色を変えただけでは立ちません。
  * - 保存先はブラウザ内の保存領域（localStorage）。設定用サーバーやアカウントは不要です。
  *   同じURLなら再公開後も同じ保存領域を引き継ぎます。
  */
@@ -25,9 +30,15 @@ export function normalizeHexColor(value) {
   return String(value).toUpperCase();
 }
 
+export const COLOR_SOURCES = {
+  manual: { label: '説明書の色', note: '購入品の説明書に記載されている色名から起こした値' },
+  user: { label: '利用者設定', note: '保護者がこのアプリで設定した色' },
+  default: { label: '仮の色・変更可能', note: '開発者が仮に割り振った色' },
+};
+
 function defaultsFor(spellId) {
   const spell = SPELL_BY_ID.get(spellId);
-  return { color: spell.defaultColor, source: 'default', verified: false };
+  return { color: spell.defaultColor, source: spell.colorSource || 'default', verified: false };
 }
 
 function assertKnownSpell(spellId) {
@@ -44,6 +55,7 @@ export class ColorStore {
     this.storage = storage;
     this.loadError = null;
     this.saveError = null;
+    this.migrationNote = null;
     this.listeners = new Set();
     this.entries = new Map(SPELLS.map((s) => [s.id, defaultsFor(s.id)]));
     this.#load();
@@ -62,21 +74,36 @@ export class ColorStore {
     try {
       parsed = JSON.parse(raw);
     } catch (err) {
-      this.loadError = '保存されていた色設定が壊れていたため、仮の初期色で起動しました。';
+      this.loadError = '保存されていた色設定が壊れていたため、説明書の色で起動しました。';
       return;
     }
     if (!parsed || typeof parsed !== 'object' || typeof parsed.spells !== 'object' || parsed.spells === null) {
-      this.loadError = '保存されていた色設定の形式が違ったため、仮の初期色で起動しました。';
+      this.loadError = '保存されていた色設定の形式が違ったため、説明書の色で起動しました。';
       return;
     }
+    const refreshed = [];
     for (const [spellId, value] of Object.entries(parsed.spells)) {
       if (!SPELL_BY_ID.has(spellId) || !value || typeof value !== 'object') continue;
       const entry = this.entries.get(spellId);
-      if (isValidHexColor(value.color)) {
-        entry.color = normalizeHexColor(value.color);
-        entry.source = value.source === 'user' ? 'user' : 'default';
-      }
       if (typeof value.verified === 'boolean') entry.verified = value.verified;
+      if (!isValidHexColor(value.color)) continue;
+
+      const keepStored =
+        value.source === 'user' ||   // 保護者が設定した色はそのまま残す
+        entry.verified;              // 実物で確認済みの色も、保護者の作業なので残す
+      if (keepStored) {
+        entry.color = normalizeHexColor(value.color);
+        entry.source = value.source === 'user' ? 'user' : (value.source === 'manual' ? 'manual' : 'default');
+        continue;
+      }
+      // 保護者が触っていない項目は、コード側の最新の初期値へ追従させる。
+      // （説明書の色が判明したときに、古い仮の色が保存領域に残り続けないようにするため）
+      if (normalizeHexColor(value.color) !== entry.color) refreshed.push(spellId);
+    }
+    if (refreshed.length > 0) {
+      this.migrationNote =
+        `保護者が設定していなかった ${refreshed.length}件 の色を、説明書の色に更新しました。`;
+      this.#save();
     }
   }
 
@@ -108,11 +135,11 @@ export class ColorStore {
     return () => this.listeners.delete(fn);
   }
 
-  /** @returns {{color:string, source:'default'|'user', verified:boolean, isProvisional:boolean}} */
+  /** @returns {{color:string, source:'manual'|'user'|'default', verified:boolean, sourceLabel:string}} */
   get(spellId) {
     assertKnownSpell(spellId);
     const e = this.entries.get(spellId);
-    return { ...e, isProvisional: e.source === 'default' };
+    return { ...e, sourceLabel: (COLOR_SOURCES[e.source] || COLOR_SOURCES.default).label };
   }
 
   getColor(spellId) {
@@ -204,7 +231,7 @@ export class ColorStore {
       }
       const entry = this.entries.get(spellId);
       entry.color = normalizeHexColor(value.color);
-      entry.source = value.source === 'default' ? 'default' : 'user';
+      entry.source = COLOR_SOURCES[value.source] ? value.source : 'user';
       if (typeof value.verified === 'boolean') entry.verified = value.verified;
       changed.push(spellId);
     }
