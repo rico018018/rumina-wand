@@ -21,8 +21,12 @@ import { MagicScene } from './scene.js';
 export const SETTINGS_KEY = 'rumina-wand.settings.v1';
 export const WORLD_KEY = 'rumina-wand.world.v1';
 
-/** 光が対象へ届くまでの時間。ここで演出（状態変更）を始める。 */
-const BOLT_TRAVEL_MS = 430;
+/**
+ * 振り始めから着弾までの時間の目安。
+ * 実際の値は呪文ごとに違い、scene.castSpellEffect() が返す impactMs を使う。
+ * ここは重複発動の判定に使う保守的な見積もり。
+ */
+const BOLT_TRAVEL_MS = 900;
 /** 演出音が鳴り終わってからマイクを戻すまでの余裕 */
 const SUPPRESS_MARGIN_MS = 450;
 
@@ -323,7 +327,7 @@ export class WandApp {
     const reason = matchResult.reason === 'ambiguous'
       ? 'どの呪文か決められないため失敗にしました（曖昧なものは成功にしません）'
       : '許可リストの表記と一致しませんでした';
-    this.scene.failureLight();
+    this.scene.fizzle();
     const soundMs = this.audio.playFailure();
     this.speech.suppress(soundMs + SUPPRESS_MARGIN_MS);
     this.#setStatus({
@@ -371,7 +375,7 @@ export class WandApp {
     const delay = this.settings.castDelayMs;
 
     // 演出音が鳴る間はマイクを止める（テレビのスピーカーからの回り込みで誤発動しないように）
-    const estimatedSoundMs = 900;
+    const estimatedSoundMs = 1400;
     this.speech.suppress(delay + BOLT_TRAVEL_MS + estimatedSoundMs + SUPPRESS_MARGIN_MS);
 
     this.diag.log({
@@ -397,11 +401,13 @@ export class WandApp {
     });
 
     const afterDelay = () => {
-      // ① 登録色の光（発動地点と軌跡。全画面の白光や点滅はしない）
-      this.scene.castLightFor(spellId, color);
+      // ① 登録色の光。まず手前で杖を振った軌跡が走り、そこから対象へ飛ぶ。
+      //    （子どもは画面の前で実際に杖を振っているので、画面の魔法もその動きに重なるようにする）
+      const timing = this.scene.castSpellEffect(spellId, color, { strength: 1 });
+      this.audio.playSwing(spellId, timing.swingMs);
       this.#setStatus({ childMode: 'casting', childSpellId: spellId, childMessage: spell.spelling });
 
-      // ② 光が届いてから、対応する演出（＝状態変更）
+      // ② 光が対象に届いた瞬間に、対応する演出（＝状態変更）
       setTimeout(() => {
         const options = { now: Date.now() };
         if (this.settings.vanishCount > 0) options.vanishCount = this.settings.vanishCount;
@@ -413,14 +419,13 @@ export class WandApp {
 
         let soundMs;
         if (outcome.status === 'applied') {
-          soundMs = this.audio.playCast(spellId);
+          soundMs = this.audio.playImpact(spellId);
         } else if (outcome.status === 'at_cap') {
           soundMs = this.audio.playAtCap();
-          this.scene.noTargetLight(color);
         } else {
           // 正しく唱えられたが対象がない。失敗ではないので、穏やかに示す。
           soundMs = this.audio.playNoTarget();
-          this.scene.noTargetLight(color);
+          this.scene.gentle(color, spellId);
         }
 
         this.diag.recordCast({ spellId, source, status: outcome.status, message: outcome.message, color });
@@ -432,7 +437,6 @@ export class WandApp {
           parentNote: `${spell.spelling}: ${outcome.status} / ${outcome.message}`,
         });
 
-        // マイクを戻す時刻を、実際に鳴った長さで微調整する
         this.speech.suppress(soundMs + SUPPRESS_MARGIN_MS);
 
         setTimeout(() => {
@@ -442,8 +446,8 @@ export class WandApp {
           } else {
             this.#setStatus({ childMode: 'idle', childSpellId: null });
           }
-        }, Math.max(300, soundMs));
-      }, BOLT_TRAVEL_MS);
+        }, Math.max(400, soundMs));
+      }, timing.impactMs);
     };
 
     if (delay > 0) setTimeout(afterDelay, delay);
@@ -465,7 +469,7 @@ export class WandApp {
   previewColor(spellId) {
     const color = this.colors.getColor(spellId);
     this.audio.unlock();
-    this.scene.previewLight(color);
+    this.scene.preview(color);
     this.audio.playPreview();
     this.diag.log({ type: 'color_preview', spellId, color });
   }

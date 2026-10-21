@@ -380,7 +380,7 @@ function buildColorRows() {
     row.querySelector('[data-role="preview"]').addEventListener('click', () => {
       // プレビューは短い光の見本だけ。世界の状態は変えない。
       app.audio.unlock();
-      app.scene.previewLight(drafts.get(spell.id));
+      app.scene.preview(drafts.get(spell.id));
       app.audio.playPreview();
       app.diag.log({ type: 'color_preview_draft', spellId: spell.id, color: drafts.get(spell.id) });
     });
