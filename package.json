@@ -1,0 +1,15 @@
+{
+  "name": "rumina-wand",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ハリーポッターとるみなのまほうのつえ — 玩具の杖で唱えた呪文に合わせて、テレビの中の3D魔法世界が変わる家庭内Webアプリ",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "npx --yes serve --listen 8777 ."
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}

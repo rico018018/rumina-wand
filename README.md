@@ -101,7 +101,10 @@ Protego の盾本体の青は演出側の仕様で、ここで設定する発動
 ビルドもインストールも不要です。静的ファイルを配るだけで動きます。
 
 ```sh
+# macOS / Linux
 python3 -m http.server 8777
+# Windows（PowerShell / コマンドプロンプト）
+py -m http.server 8777
 # → http://localhost:8777/
 ```
 
@@ -111,8 +114,11 @@ iPhone で試すには https の公開URLが必要です。
 ## テスト
 
 ```sh
-node --test test/*.test.js
+npm test
 ```
+
+（`npm test` は内部で `node --test` を呼びます。Windows の cmd / PowerShell は
+`test/*.test.js` の `*` を展開しないため、直接書かずに `npm test` を使ってください。）
 
 66件。呪文の判定（matcher）、色設定の保存と検証（colors）、世界の状態遷移（world）、診断の記録（diagnostics）を対象にしています。
 描画と音声認識はブラウザでしか動かないため、ここには含まれません。

@@ -15,9 +15,17 @@
 - ビルド工程なし。素のESモジュールと同梱のthree.jsだけで動きます。静的ファイルを配るだけ。
 
 ```sh
-python3 -m http.server 8777      # → http://localhost:8777/
-node --test test/*.test.js        # テスト72件
+# ローカルで開く（どちらか）
+python3 -m http.server 8777      # macOS / Linux
+py -m http.server 8777           # Windows
+# → http://localhost:8777/
+
+npm test                          # テスト72件
 ```
+
+`index.html` をダブルクリックして `file://` で開くと**動きません**。
+ESモジュールの読み込みがCORSで止まるためです。必ずローカルサーバー越しに開いてください。
+テストは `npm test` を使ってください（Windows の cmd / PowerShell は `*` を展開しません）。
 
 デプロイは `main` に push するだけ（GitHub Pages）。
 
@@ -99,6 +107,8 @@ src/
   ui.js             画面の配線
   styles.css        見た目
 vendor/             three.js r186.1（CDN非依存。vendor/README.md に改名の理由）
+                    ※80万行超の公式ビルド。読む必要はありません
+package.json        依存なし。npm test / npm start のためだけに置いてあります
 test/               Node の標準テストランナー用
 docs/               保護者向け手順・実機検証チェックリスト
 ```
