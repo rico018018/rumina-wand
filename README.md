@@ -6,6 +6,8 @@
 
 杖の動作・ボタン・成功信号・光は**いっさい検知しません**。カメラも使いません。
 
+開発を引き継ぐ場合は [`HANDOFF.md`](HANDOFF.md) を先に読んでください。
+
 ## 公開URL
 
 **https://rico018018.github.io/rumina-wand/**
