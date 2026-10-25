@@ -93,8 +93,8 @@ Protego の盾本体の青は演出側の仕様で、ここで設定する発動
 3. パネルの「とじる」で遊び画面だけにします。
 4. 呪文を唱えます。認識されると「つえを ふって！」と出て、約1秒後に光ります。
 
-詳しい手順とテレビ接続の確認事項は [`docs/保護者向け手順.md`](docs/保護者向け手順.md) にあります。
-実機検証の進めかたは [`docs/実機検証チェックリスト.md`](docs/実機検証チェックリスト.md) にあります。
+詳しい手順とテレビ接続の確認事項は [`docs/parent-guide.md`](docs/parent-guide.md)（保護者向け手順）にあります。
+実機検証の進めかたは [`docs/device-test-checklist.md`](docs/device-test-checklist.md)（実機検証チェックリスト）にあります。
 
 ## ローカルで動かす
 
@@ -145,7 +145,7 @@ src/
   styles.css        見た目
 vendor/             three.js r186.1（CDN非依存。vendor/README.md 参照）
 test/               Node の標準テストランナー用
-docs/               保護者向け手順・実機検証チェックリスト
+docs/               parent-guide.md（保護者向け手順）/ device-test-checklist.md（実機検証チェックリスト）
 ```
 
 **音声発動と手動発動は同じ道を通ります。** どちらも `app.js` の `castSpell()` から `world.js` の `applySpell()` へ入り、
