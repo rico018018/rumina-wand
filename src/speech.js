@@ -64,6 +64,7 @@ export class SpeechEngine {
     this.state = this.support.hasApi ? 'idle' : 'unavailable';
     this.wantListening = false;
     this.isActive = false;
+    this.audioActive = false; this.startPending = false; this.stopping = false; this.error = null;
     this.recognition = null;
 
     this.suppressUntil = 0;
@@ -120,6 +121,9 @@ export class SpeechEngine {
     }
 
     rec.onstart = () => {
+      if (rec !== this.recognition) return;
+      this.startPending = false;
+      if (!this.wantListening) { try { rec.abort(); } catch (_) {} return; }
       this.isActive = true;
       this.lastStartAt = Date.now();
       this.stats.sessions += 1;
@@ -127,11 +131,13 @@ export class SpeechEngine {
       this.#setState('listening');
     };
 
-    rec.onaudiostart = () => this.#log('audiostart');
+    rec.onaudiostart = () => { if (rec !== this.recognition) return; this.audioActive = true; this.#log('audiostart'); this.#setState(this.state, {force:true}); };
+    rec.onaudioend = () => { if (rec !== this.recognition) return; this.audioActive = false; this.#log('audioend'); this.#setState(this.state, {force:true}); };
     rec.onspeechstart = () => this.#log('speechstart');
     rec.onspeechend = () => this.#log('speechend');
 
     rec.onresult = (event) => {
+      if (rec !== this.recognition || !this.wantListening) return;
       this.stats.results += 1;
       const now = Date.now();
       const last = event.results[event.results.length - 1];
@@ -174,7 +180,9 @@ export class SpeechEngine {
     rec.onnomatch = () => this.#log('nomatch');
 
     rec.onerror = (event) => {
+      if (rec !== this.recognition) return;
       const code = event.error || 'unknown';
+      this.error = ['no-speech','aborted'].includes(code) ? null : code;
       // 無音・自前の停止は「呪文の失敗」ではない。権限・通信の問題とも区別する。
       if (code === 'no-speech') this.stats.noSpeech += 1;
       else if (code === 'aborted') this.stats.aborted += 1;
@@ -182,6 +190,7 @@ export class SpeechEngine {
       else if (code === 'not-allowed' || code === 'service-not-allowed') this.stats.permissionErrors += 1;
       else this.stats.otherErrors += 1;
       this.#log('error', { code, message: event.message || '' });
+      this.#setState(this.state, {force:true});
 
       if (code === 'not-allowed' || code === 'service-not-allowed') {
         this.wantListening = false;
@@ -190,7 +199,8 @@ export class SpeechEngine {
     };
 
     rec.onend = () => {
-      this.isActive = false;
+      if (rec !== this.recognition) return;
+      this.isActive = false; this.audioActive = false; this.startPending = false; this.stopping = false; this.recognition = null;
       const sessionMs = Date.now() - this.lastStartAt;
       this.#log('end', { sessionMs, wantListening: this.wantListening, mode: this.mode });
 
@@ -202,7 +212,7 @@ export class SpeechEngine {
       }
 
       if (!this.wantListening) {
-        this.#setState('idle');
+        this.#setState('idle', {force:true});
         return;
       }
       if (this.mode === 'push') {
@@ -226,6 +236,7 @@ export class SpeechEngine {
 
   #tryStart(reason) {
     if (!this.support.hasApi) {
+      this.wantListening = false;
       this.#setState('unavailable');
       return false;
     }
@@ -236,10 +247,12 @@ export class SpeechEngine {
     if (reason === 'auto-restart') this.stats.restarts += 1;
     try {
       this.recognition = this.#build();
+      this.startPending = true; this.#setState('starting', {force:true});
       this.recognition.start();
       return true;
     } catch (err) {
       // iOS では、ユーザー操作を伴わない start() が拒否されることがある。隠さずに記録する。
+      this.startPending = false; this.error = 'start-failed';
       this.stats.restartFailures += 1;
       this.#log('start_failed', { reason, name: err?.name || '', message: err?.message || String(err) });
       if (reason === 'auto-restart') {
@@ -258,6 +271,7 @@ export class SpeechEngine {
           this.#tryStart('auto-restart');
         }, this.restartDelay);
       } else {
+        this.wantListening = false;
         this.#setState('idle', { startFailed: true, message: err?.message || String(err) });
       }
       return false;
@@ -269,6 +283,9 @@ export class SpeechEngine {
    * @param {'continuous'|'push'} mode
    */
   start(mode = this.mode) {
+    if (this.stopping) return false;
+    if (this.startPending || this.isActive) return true;
+    this.error = null;
     this.mode = mode === 'push' ? 'push' : 'continuous';
     this.wantListening = true;
     this.restartDelay = RESTART_DELAY_MIN_MS;
@@ -290,14 +307,19 @@ export class SpeechEngine {
     this.#clearTimer('push');
     this.#clearTimer('restart');
     this.#log('stop_requested', { reason });
-    if (this.recognition && this.isActive) {
-      try {
-        this.recognition.stop();
-      } catch (err) {
-        this.#log('stop_failed', { message: err?.message || String(err) });
+    this.#clearTimer('suppress');
+    if (this.recognition) {
+      this.stopping = true;
+      this.#setState('stopping', {force:true});
+      try { this.recognition.abort(); }
+      catch (_) {
+        this.recognition = null; this.isActive = false; this.audioActive = false;
+        this.startPending = false; this.stopping = false;
+        this.#setState('idle', {force:true});
       }
     } else {
-      this.#setState('idle');
+      this.audioActive = false; this.startPending = false; this.stopping = false;
+      this.#setState('idle', {force:true});
     }
   }
 

@@ -17,6 +17,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { floorMaps, wallMaps, steelMaps, rockMaps, woodMaps, starSprite, glowSprite } from './textures.js';
 import { SpellEffects } from './effects.js';
+import { applyPhotographicStone, masonryUV } from './photo-materials.js';
 import { createDarkWizard } from './dark-wizard.js';
 
 const NIGHT = 0x070b1e;
@@ -86,12 +87,12 @@ function makeWindowSky() {
   canvas.height = h;
   const g = canvas.getContext('2d');
   const grad = g.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, '#2b4ba8');
-  grad.addColorStop(0.5, '#3f67cf');
-  grad.addColorStop(1, '#7ea3ff');
+  grad.addColorStop(0, '#1d2a35');
+  grad.addColorStop(0.5, '#34434d');
+  grad.addColorStop(1, '#6a7b83');
   g.fillStyle = grad;
   g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 150; i += 1) {
+  for (let i = 0; i < 12; i += 1) {
     const x = Math.random() * w;
     const y = Math.random() * h * 0.92;
     const r = Math.random() * 1.2 + 0.8;
@@ -171,7 +172,7 @@ export class MagicScene {
     this.renderer.setClearColor(0x0a1030, 1);
     // 明るいところが白く潰れないようにする。質感が出る。
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.25;
+    this.renderer.toneMappingExposure = 1.1;
     this.renderer.shadowMap.enabled = !lowPower;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.maxPixelRatio = lowPower ? 1.25 : 2;
@@ -207,15 +208,15 @@ export class MagicScene {
   #buildLights() {
     // ライトは数を絞る。材質の計算はライトの数に比例して重くなるため、
     // 半球光1つで全体の地明かりをまかない、個別の点光源は最小限にする。
-    this.scene.add(new THREE.HemisphereLight(0x6b82d4, 0x1b2242, 1.9));
+    this.scene.add(new THREE.HemisphereLight(0xa9b7c3, 0x34302a, .85));
 
     // 月あかり。これが影を落とす。
-    const moon = new THREE.DirectionalLight(0xc2d4ff, 2.6);
+    const moon = new THREE.DirectionalLight(0xd4dfe5, 2.8);
     moon.position.set(-5.5, 11, 4.5);
     moon.target.position.set(0, 0.6, -1);
     if (!this.lowPower) {
       moon.castShadow = true;
-      moon.shadow.mapSize.set(1024, 1024);
+      moon.shadow.mapSize.set(2048, 2048);
       moon.shadow.camera.near = 1;
       moon.shadow.camera.far = 26;
       moon.shadow.camera.left = -8;
@@ -236,6 +237,7 @@ export class MagicScene {
     subject.target.position.set(0, 1.0, ARMOR_Z);
     this.scene.add(subject);
     this.scene.add(subject.target);
+    const rim = new THREE.DirectionalLight(0x9eafb8,1.8);rim.position.set(-2,4,-5);this.scene.add(rim);
 
     // かがり火。暖色で、青い世界に対比を作る。ゆっくり揺らす。
     this.braziers = [];
@@ -276,6 +278,7 @@ export class MagicScene {
         envMapIntensity: 0.5,
       }),
     );
+    applyPhotographicStone(floor.material,'stone_floor',[70/1.8,70/1.8]);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = !this.lowPower;
     this.scene.add(floor);
@@ -309,9 +312,11 @@ export class MagicScene {
       envMapIntensity: 0.35,
     });
 
+    applyPhotographicStone(wallMat,'castle_wall_slates');
+
     // 奥の壁（窓の左右と上に分けて作り、窓の部分は抜く）
     const seg = (w, h, x, y, z) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.5), wallMat);
+      const m = new THREE.Mesh(masonryUV(new THREE.BoxGeometry(w, h, 0.5)), wallMat);
       m.position.set(x, y, z);
       m.castShadow = !this.lowPower;
       m.receiveShadow = !this.lowPower;
@@ -329,12 +334,12 @@ export class MagicScene {
     seg(2.5, WALL_TOP, 2.3, WALL_TOP / 2, -7);
     seg(5.6, WALL_TOP, 8.0, WALL_TOP / 2, -7);
     // 窓の上の帯
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(26, WALL_TOP - (WIN_Y + WIN_H), 0.5), wallMat);
+    const lintel = new THREE.Mesh(masonryUV(new THREE.BoxGeometry(26, WALL_TOP - (WIN_Y + WIN_H), 0.5)), wallMat);
     lintel.position.set(0, (WIN_Y + WIN_H) + (WALL_TOP - (WIN_Y + WIN_H)) / 2, -7);
     lintel.castShadow = !this.lowPower;
     this.scene.add(lintel);
     // 窓の下の腰壁
-    const sill = new THREE.Mesh(new THREE.BoxGeometry(26, WIN_Y, 0.5), wallMat);
+    const sill = new THREE.Mesh(masonryUV(new THREE.BoxGeometry(26, WIN_Y, 0.5)), wallMat);
     sill.position.set(0, WIN_Y / 2, -7);
     sill.castShadow = !this.lowPower;
     this.scene.add(sill);
@@ -372,13 +377,22 @@ export class MagicScene {
       this.scene.add(vbar);
     }
 
-    this.#buildStars();
+    // Real architecture: vaulted ribs and dark stone ceiling, no oversized sky stars.
+    const ceilingMat=wallMat.clone();applyPhotographicStone(ceilingMat,'castle_wall_slates',[4,4]);
+    const ceiling=new THREE.Mesh(new THREE.PlaneGeometry(27,22),ceilingMat);
+    ceiling.rotation.x=Math.PI/2;ceiling.position.set(0,6.8,-2);ceiling.receiveShadow=true;this.scene.add(ceiling);
+    const ribMat=new THREE.MeshStandardMaterial({color:0x68645b,roughness:.94});
+    for(const z of [-6,-2,2]) {
+      const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(-6.4,3.9,z),new THREE.Vector3(-4.5,5.6,z),new THREE.Vector3(0,6.7,z),new THREE.Vector3(4.5,5.6,z),new THREE.Vector3(6.4,3.9,z)]);
+      const rib=new THREE.Mesh(new THREE.TubeGeometry(curve,60,.16,8,false),ribMat);rib.castShadow=true;this.scene.add(rib);
+    }
 
     // 左右の列柱
     const colMat = new THREE.MeshStandardMaterial({
       map: this.tex.wall.map, roughnessMap: this.tex.wall.roughnessMap,
       roughness: 1, metalness: 0.06, envMapIntensity: 0.4,
     });
+    applyPhotographicStone(colMat,'castle_wall_slates',[1,2]);
     const capMat = new THREE.MeshStandardMaterial({ color: STONE, roughness: 0.65, metalness: 0.25, envMapIntensity: 0.7 });
     for (const x of [-6.4, 6.4]) {
       for (const z of [-5.2, -2.4, 0.4]) {
@@ -480,7 +494,7 @@ export class MagicScene {
    * 供給源が見えないと、宝物がどこから来たのか分からない。
    */
   #buildTreasury() {
-    const alcoveMat = new THREE.MeshStandardMaterial({ color: 0x1b2146, roughness: 0.95, metalness: 0.05 });
+    const alcoveMat = new THREE.MeshStandardMaterial({ color: 0x222421, roughness: 0.95, metalness: 0.05 });
     const alcove = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 0.5), alcoveMat);
     alcove.position.set(-6.9, 1.3, -6.55);
     this.scene.add(alcove);
@@ -496,8 +510,8 @@ export class MagicScene {
     this.treasuryGlow = innerGlow;
     // 点光源は増やさず、棚の中を自発光させて「光っている場所」に見せる
 
-    const shelfMat = new THREE.MeshStandardMaterial({ color: 0x6b5526, roughness: 0.6, metalness: 0.55, envMapIntensity: 0.8, emissive: 0x3a2a08, emissiveIntensity: 0.6 });
-    const goldMat = new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.22, metalness: 0.95, envMapIntensity: 1.6, emissive: 0x6a4a10, emissiveIntensity: 0.9 });
+    const shelfMat = new THREE.MeshStandardMaterial({ color: 0x6b5526, roughness: 0.6, metalness: 0.55, envMapIntensity: 0.8, emissive: 0x3a2a08, emissiveIntensity: 0.1 });
+    const goldMat = new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.22, metalness: 0.95, envMapIntensity: 1.6, emissive: 0x6a4a10, emissiveIntensity: 0.15 });
     for (let s = 0; s < 3; s += 1) {
       const shelf = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.07, 0.42), shelfMat);
       shelf.position.set(-6.9, 0.5 + s * 0.78, -6.4);
@@ -564,15 +578,19 @@ export class MagicScene {
     this.rockMeshes = [];
     const rockMat = new THREE.MeshStandardMaterial({
       map: this.tex.rock.map, roughnessMap: this.tex.rock.roughnessMap,
-      roughness: 1, metalness: 0.04, flatShading: true, envMapIntensity: 0.5,
+      roughness: 1, metalness: 0.04, flatShading: false, envMapIntensity: 0.5,
     });
+    applyPhotographicStone(rockMat,'castle_wall_slates');
     const rockPos = [
       new THREE.Vector3(2.45, 0.5, -1.35),
       new THREE.Vector3(3.5, 0.4, -2.4),
       new THREE.Vector3(1.9, 0.34, -2.9),
     ];
     rockPos.forEach((p, i) => {
-      const mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 - i * 0.06, 0), rockMat);
+      const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5 - i * 0.06, 3), rockMat);
+      const verts=mesh.geometry.attributes.position;
+      for(let v=0;v<verts.count;v++){const x=verts.getX(v),y=verts.getY(v),z=verts.getZ(v);const scale=1+.12*Math.sin(x*17+z*11)*Math.cos(y*13);verts.setXYZ(v,x*scale,y*scale*.85,z*scale);}
+      mesh.geometry.computeVertexNormals();
       mesh.position.copy(p);
       mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
       mesh.castShadow = shadow;
@@ -591,16 +609,16 @@ export class MagicScene {
     }
 
     // --- ヘビ（Serpensortia / Vipera Evanesca） ---
-    const bodyGeo = new THREE.SphereGeometry(0.115, 10, 8);
-    const headGeo = new THREE.SphereGeometry(0.145, 12, 10);
-    const snakeMat = new THREE.MeshStandardMaterial({ color: 0x2f9a58, roughness: 0.45, metalness: 0.2, envMapIntensity: 0.8 });
-    const headMat = new THREE.MeshStandardMaterial({ color: 0x45bb70, roughness: 0.38, metalness: 0.25, envMapIntensity: 1 });
+    const bodyGeo = new THREE.SphereGeometry(0.095, 14, 10);
+    const headGeo = new THREE.SphereGeometry(0.11, 16, 12);
+    const snakeMat = new THREE.MeshStandardMaterial({ color: 0x484d32, roughness: 0.45, metalness: 0.2, envMapIntensity: 0.8 });
+    const headMat = new THREE.MeshStandardMaterial({ color: 0x666449, roughness: 0.38, metalness: 0.25, envMapIntensity: 1 });
     for (let i = 0; i < 10; i += 1) {
       const group = new THREE.Group();
       const segs = [];
-      for (let s = 0; s < 5; s += 1) {
+      for (let s = 0; s < 16; s += 1) {
         const seg = new THREE.Mesh(s === 0 ? headGeo : bodyGeo, s === 0 ? headMat : snakeMat);
-        seg.scale.setScalar(1 - s * 0.075);
+        seg.scale.set(1-s*.045,.62*(1-s*.04),1.2);
         seg.castShadow = shadow;
         group.add(seg);
         segs.push(seg);
@@ -631,7 +649,7 @@ export class MagicScene {
       this.scene.add(band);
     }
     const slugGeo = new THREE.CapsuleGeometry(0.075, 0.1, 4, 8);
-    const slugMat = new THREE.MeshStandardMaterial({ color: 0x9ec24a, roughness: 0.25, metalness: 0.1, envMapIntensity: 1.2 });
+    const slugMat = new THREE.MeshStandardMaterial({ color: 0x72664e, roughness: 0.25, metalness: 0.1, envMapIntensity: 1.2 });
     for (let i = 0; i < 10; i += 1) {
       const mesh = new THREE.Mesh(slugGeo, slugMat);
       mesh.rotation.z = Math.PI / 2;
@@ -717,7 +735,7 @@ export class MagicScene {
 
   /** 空気中の塵。光の中を漂うと、空間に奥行きが出る。 */
   #buildDust() {
-    const n = this.lowPower ? 90 : 220;
+    const n = this.lowPower ? 35 : 80;
     const pos = new Float32Array(n * 3);
     const size = new Float32Array(n);
     this.dustSeed = [];
@@ -725,7 +743,7 @@ export class MagicScene {
       pos[i * 3] = (Math.random() - 0.5) * 14;
       pos[i * 3 + 1] = 0.2 + Math.random() * 4.2;
       pos[i * 3 + 2] = -6 + Math.random() * 9;
-      size[i] = 0.1 + Math.random() * 0.2;
+      size[i] = 0.018 + Math.random() * 0.025;
       this.dustSeed.push({ phase: Math.random() * Math.PI * 2, speed: 0.1 + Math.random() * 0.22, baseY: pos[i * 3 + 1] });
     }
     const geo = new THREE.BufferGeometry();
@@ -836,8 +854,8 @@ export class MagicScene {
     this.heldSword.visible = world.armor.holdsSword;
     this.dentMark.visible = world.armor.dented;
     this.laughMark.visible = world.armor.tickling;
-    this.cushion.visible = world.armor.onSoftLanding;
-    this.cushionTuft.visible = world.armor.onSoftLanding;
+    this.cushion.visible = false;
+    this.cushionTuft.visible = false;
   }
 
   // --- 演出の入口（app.js から呼ぶ） ---
@@ -905,8 +923,8 @@ export class MagicScene {
       s.group.position.copy(s.home);
       s.group.rotation.y = Math.sin(t * 1.0 * speed + s.phase) * 1.0;
       s.segs.forEach((seg, k) => {
-        const wave = Math.sin(t * 4.2 * speed + s.phase - k * 0.75);
-        seg.position.set(wave * 0.13, 0.11 - k * 0.004, -k * 0.165);
+        const wave = Math.sin(t * 4.2 * speed + s.phase - k * 0.28);
+        seg.position.set(wave * 0.13, 0.07 - k * 0.002, -k * 0.09);
         seg.rotation.y = wave * 0.3;
       });
     });
@@ -931,6 +949,11 @@ export class MagicScene {
     }
 
     this.#updateArmor(t, dt);
+    if(this.armor.userData.clothMeshes)for(const m of this.armor.userData.clothMeshes){
+      const base=m.userData.rest,p=m.geometry.attributes.position;
+      for(let i=0;i<p.count;i++){const y=base[i*3+1];const weight=Math.max(0,1-y/1.4);p.setZ(i,base[i*3+2]+Math.sin(t*1.1+y*2+base[i*3]*3)*.012*weight);}
+      p.needsUpdate=true;
+    }
     this.effects.update(nowMs, dt);
 
     try {
@@ -969,7 +992,7 @@ export class MagicScene {
     });
 
     // 兜がごろんと外れる
-    this.armorHelmet.position.set(0, 1.65, 0);
+    this.armorHelmet.position.set(0, 1.73, 0);
     this.armorHelmet.rotation.set(ar.tickling ? .12 : 0, Math.sin(t*.7)*.08, 0);
 
     for (const [side, group] of [[-1, this.armorArms.left], [1, this.armorArms.right]]) {

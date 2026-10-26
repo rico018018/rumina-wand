@@ -206,7 +206,7 @@ export const SPELLS = [
     spelling: 'Everte Statum',
     guide: 'eh-VER-tay STAH-tum',
     katakana: 'エ・ヴァー・テイ スター・タム',
-    effectSummary: 'てきを後ろへ飛ばす。安全な柔らかい着地点を描く',
+    effectSummary: 'てきを後ろへ飛ばし、床に倒れる',
     defaultColor: '#FFD426',
     defaultColorName: '黄色',
     colorSource: 'manual',

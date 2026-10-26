@@ -5,6 +5,7 @@
  * 子ども向け表示は、文字が読めなくても分かるように「色・絵・形・短い音」で伝えます。
  */
 
+import { deviceState } from './device-state.js';
 import { WandApp } from './app.js';
 import { SPELLS, COLOR_SWATCHES, PHASE1_SPELL_IDS } from './spells.js';
 import { STRICTNESS_LEVELS } from './matcher.js';
@@ -88,11 +89,11 @@ function paintCastButton(status) {
   const waiting = status.childMode === 'waiting' || status.childMode === 'casting';
   if (waiting) {
     castBtn.dataset.state = 'waiting';
-    castBtnIcon.textContent = '✨';
+    castBtnIcon.textContent = '✦';
     castBtnText.textContent = 'まってね';
   } else if (status.listening) {
     castBtn.dataset.state = 'listening';
-    castBtnIcon.textContent = '👂';
+    castBtnIcon.textContent = '●';
     castBtnText.textContent = 'きいてるよ';
   } else {
     castBtn.dataset.state = 'idle';
@@ -150,7 +151,35 @@ function paintTally(summary) {
   }
 }
 
+function paintDevices() {
+  for (const [name, source] of [['mic', app.speech], ['camera', app.gesture]]) {
+    const state = deviceState(name, source);
+    const btn = $(name + 'Toggle');
+    btn.dataset.state = state.tone;
+    btn.setAttribute('aria-pressed', String(state.enabled));
+    btn.setAttribute('aria-label', `${name === 'mic' ? 'マイク' : 'カメラ'}：${state.label}。${state.action}`);
+    $(name + 'State').textContent = state.label;
+    $(name + 'Action').textContent = state.action;
+    btn.disabled = state.disabled;
+  }
+  const note = app.gesture.error ? `カメラ：${app.gesture.error}` : app.speech.error ? 'マイクを開始できません。端末の許可・接続を確認してください。' :
+    app.settings.triggerMode === 'gesture' && !app.gesture.active ? '振り下ろしで遊ぶには、カメラをONにしてください' :
+    app.settings.triggerMode === 'voice' ? '音声のみで発動' : '音声 ＋ 振り下ろしで発動';
+  $('deviceHint').textContent = note;
+  $('cameraStart').disabled = app.gesture.starting || app.gesture.active;
+  $('cameraStop').disabled = !app.gesture.starting && !app.gesture.active;
+}
+$('micToggle').addEventListener('click', () => {
+  if (app.speech.wantListening || app.speech.isActive || app.speech.startPending || app.speech.audioActive) app.stopListening();
+  else { listenStartedAt = Date.now(); app.startListening(); }
+  paintDevices();
+});
+$('cameraToggle').addEventListener('click', () => {
+  if (app.gesture.active || app.gesture.starting) { app.cancelCast(); app.gesture.stop(); }
+  else startCamera();
+});
 app.onStatus((status) => {
+  paintDevices();
   paintWand(status);
   paintCastButton(status);
   $('parentNote').textContent = status.parentNote || '';
@@ -705,12 +734,14 @@ app.diag.log({
 const triggerMode = $('triggerMode'); triggerMode.value=app.settings.triggerMode;
 triggerMode.addEventListener('change',()=>app.updateSettings({triggerMode:triggerMode.value}));
 app.gesture.preview=$('cameraView');
-$('cameraStart').addEventListener('click',async()=>{
-  app.audio.unlock(); $('cameraStart').disabled=true;
-  try { await app.gesture.start($('cameraFacing').value); }
-  catch(err){ $('cameraStatus').textContent=`開始できません：${err.message}。音声のみでも遊べます。`; }
-  finally { $('cameraStart').disabled=false; }
-});
+async function startCamera() {
+  app.audio.unlock();
+  // Explicit camera ON selects the mode that actually uses it.
+  if (app.settings.triggerMode !== 'gesture') { app.updateSettings({triggerMode:'gesture'}); triggerMode.value='gesture'; }
+  await app.gesture.start($('cameraFacing').value);
+  paintDevices();
+}
+$('cameraStart').addEventListener('click',startCamera);
 $('cameraStop').addEventListener('click',()=>{app.cancelCast();app.gesture.stop();});
 $('cameraPreview').addEventListener('change',()=>{$('cameraView').hidden=!$('cameraPreview').checked;});
 $('gestureRegion').addEventListener('change',()=>{
@@ -733,6 +764,6 @@ $('previewAll').addEventListener('click',()=>{stopTour();tourIndex=0; const next
 };next();});
 $('previewEnd').addEventListener('click',()=>{stopTour();app.endPreview();$('previewStatus').textContent='通常の世界に戻りました';});
 // Other parent actions leave the isolated preview and cancel its scheduled tour.
-for(const id of ['btnResetWorld','btnStart','btnStop','castBtn'])$(id).addEventListener('click',()=>{stopTour();if(app.previewSavedWorld)app.endPreview();},true);
+for(const id of ['btnResetWorld','btnStart','btnStop','castBtn','micToggle'])$(id).addEventListener('click',()=>{stopTour();if(app.previewSavedWorld)app.endPreview();},true);
 window.addEventListener('pagehide',()=>{stopTour();app.stopListening('pagehide');app.gesture.stop();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stopTour();app.stopListening('hidden');app.gesture.stop();}});

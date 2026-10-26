@@ -49,7 +49,7 @@ export function estimateFlow(previous, current, width, height, roi = { x: .15, y
 export class CameraGesture {
   constructor({ onStroke, onState }) {
     this.onStroke = onStroke; this.onState = onState; this.gate = new DownstrokeGate();
-    this.roi = { x: .15, y: .08, w: .7, h: .75 }; this.active = false; this.generation = 0;
+    this.roi = { x: .15, y: .08, w: .7, h: .75 }; this.active = false; this.starting = false; this.error = null; this.generation = 0;
     this.video = document.createElement('video'); this.video.muted = true; this.video.playsInline = true;
     this.video.setAttribute('playsinline', ''); this.video.className = 'camera-source';
     document.body.append(this.video);
@@ -58,16 +58,17 @@ export class CameraGesture {
   }
   async start(facingMode = 'user') {
     this.stop(); const generation = this.generation;
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error('カメラにはHTTPSと対応ブラウザが必要です');
+    this.starting = true; this.error = null;
     this.onState('カメラの許可を待っています');
     try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('カメラにはHTTPSと対応ブラウザが必要です');
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facingMode }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } }, audio: false });
       if (generation !== this.generation) { stream.getTracks().forEach(t => t.stop()); return false; }
       this.stream = stream; this.video.srcObject = stream;
       stream.getVideoTracks()[0].addEventListener('ended', () => { if (this.active) { this.stop(); this.onState('カメラが切断されました。開始し直してください'); } });
       await this.video.play();
       if (generation !== this.generation) return false;
-      this.active = true; this.previous = null; this.startedAt = performance.now(); this.lastFrame = 0;
+      this.starting = false; this.active = true; this.previous = null; this.startedAt = performance.now(); this.lastFrame = 0;
       this.onState('準備中：iPhoneを固定してください');
       const step = now => {
         if (!this.active || generation !== this.generation) return;
@@ -78,7 +79,7 @@ export class CameraGesture {
         this.raf = requestAnimationFrame(step);
       };
       this.raf = requestAnimationFrame(step); return true;
-    } catch (err) { if (generation === this.generation) this.stop(); throw err; }
+    } catch (err) { if (generation !== this.generation) return false; this.stop(); this.error = err.message; this.onState(`開始できません：${err.message}`); return false; }
   }
   process(now, gap) {
     this.ctx.drawImage(this.video, 0, 0, 160, 120);
@@ -97,7 +98,7 @@ export class CameraGesture {
     }
   }
   stop() {
-    this.generation++; this.active = false; cancelAnimationFrame(this.raf);
+    this.generation++; this.active = false; this.starting = false; this.error = null; cancelAnimationFrame(this.raf);
     this.stream?.getTracks().forEach(t => t.stop()); this.stream = null;
     this.video.pause(); this.video.srcObject = null; this.previous = null; this.gate.reset();
     this.onState('カメラ停止');
