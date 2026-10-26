@@ -17,10 +17,11 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { floorMaps, wallMaps, steelMaps, rockMaps, woodMaps, starSprite, glowSprite } from './textures.js';
 import { SpellEffects } from './effects.js';
+import { createDarkWizard } from './dark-wizard.js';
 
 const NIGHT = 0x070b1e;
 const GOLD = 0xd8a94e;
-const STONE = 0x4c5582;
+const STONE = 0x51565e;
 
 /** 構図の基準。これより縦長の画面では画角を広げて横の見える範囲を保つ。 */
 const BASE_FOV_DEG = 42;
@@ -170,17 +171,17 @@ export class MagicScene {
     this.renderer.setClearColor(0x0a1030, 1);
     // 明るいところが白く潰れないようにする。質感が出る。
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.55;
+    this.renderer.toneMappingExposure = 1.25;
     this.renderer.shadowMap.enabled = !lowPower;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.maxPixelRatio = lowPower ? 1.25 : 2;
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x16204c, 0.02);
+    this.scene.fog = new THREE.FogExp2(0x111b26, 0.024);
 
     this.camera = new THREE.PerspectiveCamera(BASE_FOV_DEG, BASE_ASPECT, 0.1, 80);
-    this.camera.position.set(0, 2.5, 6.3);
-    this.camera.lookAt(0, 1.85, -0.6);
+    this.camera.position.set(0, 1.8, 6.3);
+    this.camera.lookAt(0, 1.25, -0.6);
 
     this.tex = {
       floor: floorMaps(),
@@ -650,11 +651,11 @@ export class MagicScene {
     this.steelMat = steelMat;
     for (let i = 0; i < 3; i += 1) {
       const g = new THREE.Group();
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.78, 0.024), steelMat);
+      const blade = new THREE.Mesh(new THREE.CylinderGeometry(.009, .023, .78, 10), new THREE.MeshStandardMaterial({color:0x553b29,roughness:.7}));
       blade.position.y = 0.39;
       blade.castShadow = shadow;
       g.add(blade);
-      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.055, 0.055), goldMat);
+      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.055, 0.04), goldMat);
       guard.castShadow = shadow;
       g.add(guard);
       const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.2, 8), new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.8 }));
@@ -677,14 +678,14 @@ export class MagicScene {
         roughness: 0.12, metalness: 0.1, envMapIntensity: 1.8, depthWrite: false,
       }),
     );
-    this.shield.position.set(0, 0.02, ARMOR_Z + 0.15);
+    this.shield.position.set(0, .02, 2.4);
     this.scene.add(this.shield);
     this.shieldEdge = new THREE.Mesh(
       new THREE.TorusGeometry(1.85, 0.035, 10, 44),
       new THREE.MeshBasicMaterial({ color: 0xa6c5ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
     );
     this.shieldEdge.rotation.x = Math.PI / 2;
-    this.shieldEdge.position.set(0, 0.04, ARMOR_Z + 0.15);
+    this.shieldEdge.position.set(0, .04, 2.4);
     this.scene.add(this.shieldEdge);
 
     // --- 柔らかい着地点（Stupefy / Everte Statum） ---
@@ -708,160 +709,10 @@ export class MagicScene {
    * Impedimenta が効いたことが見えるよう、左右にゆっくり歩かせる。
    */
   #buildArmor() {
-    const shadow = !this.lowPower;
-    const g = new THREE.Group();
-    const steel = this.steelMat;
-    const steelDark = new THREE.MeshStandardMaterial({
-      map: this.tex.steel.map, roughnessMap: this.tex.steel.roughnessMap,
-      roughness: 1, metalness: 0.85, color: 0x9aa4bd, envMapIntensity: 1.4,
-    });
-    const gold = new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.22, metalness: 0.95, envMapIntensity: 1.7 });
-    const dark = new THREE.MeshBasicMaterial({ color: 0x05070f });
-
-    const add = (mesh) => { mesh.castShadow = shadow; mesh.receiveShadow = shadow; g.add(mesh); return mesh; };
-
-    // 胸当て（上すぼまり）と腹当て
-    const torso = add(new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.44, 0.6, 18), steel));
-    torso.position.y = 1.08;
-    const chestRidge = add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.52, 0.1), gold));
-    chestRidge.position.set(0, 1.08, 0.33);
-    const waist = add(new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.4, 0.22, 18), steelDark));
-    waist.position.y = 0.7;
-    const belt = add(new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.05, 10, 26), gold));
-    belt.rotation.x = Math.PI / 2;
-    belt.position.y = 0.66;
-
-    // 腰当て
-    const skirt = add(new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.56, 0.38, 18, 1, true), steelDark));
-    skirt.position.y = 0.44;
-    skirt.material.side = THREE.DoubleSide;
-
-    // 脚
-    this.armorLegs = [];
-    for (const side of [-1, 1]) {
-      const leg = new THREE.Group();
-      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.1, 0.34, 10), steelDark);
-      thigh.position.y = -0.17;
-      thigh.castShadow = shadow;
-      leg.add(thigh);
-      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.085, 0.3, 10), steel);
-      shin.position.y = -0.49;
-      shin.castShadow = shadow;
-      leg.add(shin);
-      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.11, 0.33), steel);
-      boot.position.set(0, -0.68, 0.05);
-      boot.castShadow = shadow;
-      leg.add(boot);
-      leg.position.set(side * 0.19, 0.72, 0);
-      g.add(leg);
-      this.armorLegs.push(leg);
-    }
-
-    // 首・兜
-    const neck = add(new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.13, 12), steelDark));
-    neck.position.y = 1.44;
-
-    const helmet = new THREE.Group();
-    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), steel);
-    skull.scale.set(1, 1.06, 0.97);
-    skull.castShadow = shadow;
-    helmet.add(skull);
-    const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.155, 0.26, 14), steelDark);
-    visor.position.set(0, -0.15, 0.025);
-    visor.castShadow = shadow;
-    helmet.add(visor);
-    // 覗き穴。ここが顔として読める。
-    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.042, 0.05), dark);
-    slit.position.set(0, -0.045, 0.185);
-    helmet.add(slit);
-    for (let i = 0; i < 4; i += 1) {
-      const vent = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.022, 0.04), dark);
-      vent.position.set(0, -0.17 - i * 0.035, 0.175);
-      helmet.add(vent);
-    }
-    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.19, 0.38), gold);
-    crest.position.set(0, 0.2, -0.02);
-    crest.castShadow = shadow;
-    helmet.add(crest);
-    helmet.position.set(0, 1.65, 0);
-    g.add(helmet);
-    this.armorHelmet = helmet;
-
-    // 肩当てと腕
-    const ARM = 0.5;
-    this.armorArms = {};
-    for (const side of [-1, 1]) {
-      const pauldron = add(new THREE.Mesh(
-        new THREE.SphereGeometry(0.21, 14, 12, 0, Math.PI * 2, 0, Math.PI / 1.65), steel,
-      ));
-      pauldron.position.set(side * 0.38, 1.3, 0);
-      pauldron.rotation.z = side * 0.32;
-
-      const shoulder = new THREE.Group();
-      shoulder.position.set(side * 0.38, 1.24, 0.02);
-      shoulder.rotation.set(-0.1, 0, side * 0.24);
-      const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, ARM * 0.55, 10), steelDark);
-      upper.position.y = -ARM * 0.28;
-      upper.castShadow = shadow;
-      shoulder.add(upper);
-      const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.082, 10, 8), steel);
-      elbow.position.y = -ARM * 0.55;
-      shoulder.add(elbow);
-      const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.062, ARM * 0.5, 10), steel);
-      lower.position.y = -ARM * 0.8;
-      lower.castShadow = shadow;
-      shoulder.add(lower);
-      const gauntlet = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.18), steel);
-      gauntlet.position.y = -ARM - 0.02;
-      gauntlet.castShadow = shadow;
-      shoulder.add(gauntlet);
-      g.add(shoulder);
-      this.armorArms[side === -1 ? 'left' : 'right'] = shoulder;
-    }
-
-    // 右手の剣
-    this.heldSword = new THREE.Group();
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.8, 0.024), steel);
-    blade.position.y = 0.42;
-    blade.castShadow = shadow;
-    this.heldSword.add(blade);
-    this.heldSword.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.055, 0.055), gold));
-    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.2, 8), new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.8 }));
-    grip.position.y = -0.12;
-    this.heldSword.add(grip);
-    this.heldSword.position.set(0.04, -ARM - 0.04, 0.12);
-    this.heldSword.rotation.set(-0.38, 0, -0.5);
-    this.armorArms.right.add(this.heldSword);
-
-    // へこみ（Everte Statum でできて Episkey で直る）。控えめに。
-    this.dentMark = new THREE.Mesh(
-      new THREE.SphereGeometry(0.14, 12, 10),
-      new THREE.MeshStandardMaterial({ color: 0x4a5165, roughness: 0.95, metalness: 0.35 }),
-    );
-    this.dentMark.scale.set(1, 1.1, 0.35);
-    this.dentMark.position.set(-0.17, 1.1, 0.3);
-    this.dentMark.visible = false;
-    g.add(this.dentMark);
-
-    // くすぐられているときの印
-    this.laughMark = new THREE.Group();
-    const noteTex = glowSprite();
-    for (let i = 0; i < 3; i += 1) {
-      const note = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: noteTex, color: 0xffe7a0, transparent: true, opacity: 0.9,
-        blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
-      }));
-      note.scale.setScalar(0.3);
-      note.position.set(0.34 + i * 0.19, 1.9 + i * 0.15, 0.1);
-      this.laughMark.add(note);
-    }
-    this.laughMark.visible = false;
-    g.add(this.laughMark);
-
-    g.position.set(0, 0, ARMOR_Z);
-    g.scale.setScalar(1.2);
-    this.scene.add(g);
-    this.armor = g;
+    const w = createDarkWizard();
+    this.armor=w.root; this.armorHelmet=w.head; this.armorArms=w.arms; this.armorLegs=w.legs;
+    this.heldSword=w.wand; this.dentMark=w.pain; this.laughMark=w.laugh;
+    this.armor.position.z=ARMOR_Z; this.scene.add(this.armor);
   }
 
   /** 空気中の塵。光の中を漂うと、空間に奥行きが出る。 */
@@ -905,6 +756,13 @@ export class MagicScene {
   // ---------------------------------------------------------------- 公開API
 
   targetFor(spellId) {
+    if (spellId === 'accio') return new THREE.Vector3(-6.9,1.35,-6.3);
+    if (spellId === 'protego') return new THREE.Vector3(0,1.3,2.4);
+    if (spellId === 'reducto') return this.rockMeshes.find(m=>m.visible)?.position.clone() || TARGET_POINTS.reducto.clone();
+    if (spellId === 'vipera_evanesca') return this.pools.snakes.find(s=>s.group.visible)?.home.clone() || TARGET_POINTS.serpensortia.clone();
+    if (['stupefy','rennervate','episkey','expelliarmus','rictusempra','slugulas_eructo','impedimenta','everte_statum'].includes(spellId)) {
+      return this.armor.position.clone().add(new THREE.Vector3(0, this.world?.armor.standing ? 1.65 : .35, 0));
+    }
     return (TARGET_POINTS[spellId] || TARGET_POINTS.default).clone();
   }
 
@@ -937,9 +795,11 @@ export class MagicScene {
   setWorld(world) {
     this.world = world;
 
-    this.pools.treasures.forEach((t, i) => { t.mesh.visible = i < world.treasures.length; });
-    this.pools.slugs.forEach((s, i) => { s.mesh.visible = i < world.slugs.length; });
-    this.pools.swords.forEach((s, i) => { s.mesh.visible = i < world.droppedSwords.length; });
+    this.pools.treasures.forEach((t, i) => { t.mesh.visible = i < world.treasures.length; t.bornAt=world.treasures[i]?.bornAt; });
+    this.pools.slugs.forEach((s, i) => { s.mesh.visible = i < world.slugs.length; s.bornAt=world.slugs[i]?.bornAt; if(!s.home)s.home=s.mesh.position.clone(); });
+    this.pools.swords.forEach((s, i) => { const was=s.mesh.visible; s.mesh.visible=i<world.droppedSwords.length;
+      if(!s.home)s.home=s.mesh.position.clone();
+      if(s.mesh.visible&&!was){s.bornAt=Date.now();s.from=this.armor.position.clone().add(new THREE.Vector3(.5,1.2,0));} });
 
     this.pools.snakes.forEach((s, i) => {
       const active = i < world.snakes.length;
@@ -987,6 +847,8 @@ export class MagicScene {
     return this.effects.cast(spellId, hexColor, this.targetFor(spellId), options);
   }
 
+  cancelEffects() { this.effects.cancel(); }
+  setOrigin(x) { this.effects.originX = x; }
   charge(ms) { this.effects.charge(ms); }
   fizzle() { this.effects.fizzle(); }
   gentle(hexColor, spellId) { this.effects.gentle(hexColor, this.targetFor(spellId)); }
@@ -1032,7 +894,9 @@ export class MagicScene {
       if (!item.mesh.visible) return;
       item.mesh.rotation.y = t * 0.55 + i;
       item.mesh.rotation.x = Math.sin(t * 0.4 + i) * 0.2;
-      item.mesh.position.y = item.home.y + Math.sin(t * 1.2 + item.phase) * 0.045;
+      const progress=Math.min(1, Math.max(0,(Date.now()-(item.bornAt||0))/1500));
+      item.mesh.position.copy(new THREE.Vector3(-6.9,1.35,-6.3).lerp(item.home,progress));
+      item.mesh.position.y += Math.sin(progress*Math.PI)*2 + Math.sin(t*1.2+item.phase)*.045;
     });
 
     const speed = this.world ? this.world.armor.speedFactor : 1;
@@ -1050,9 +914,12 @@ export class MagicScene {
     this.pools.slugs.forEach((s, i) => {
       if (!s.mesh.visible) return;
       s.mesh.rotation.y = Math.sin(t * 1.3 + i) * 0.5;
-      s.mesh.position.y += Math.sin(t * 2.2 + i) * 0.0006;
+      const progress=Math.min(1,Math.max(0,(Date.now()-(s.bornAt||0))/950));
+      s.mesh.position.copy(this.armor.position.clone().add(new THREE.Vector3(0,2.1,.2)).lerp(s.home,progress));
+      s.mesh.position.y+=Math.sin(progress*Math.PI)*.6;
     });
 
+    this.pools.swords.forEach(s=>{if(!s.mesh.visible)return;const progress=Math.min(1,(Date.now()-(s.bornAt||0))/1100);s.mesh.position.copy((s.from||s.home).clone().lerp(s.home,progress));s.mesh.position.y+=Math.sin(progress*Math.PI)*1.8;s.mesh.rotation.z=.7+progress*6;});
     if (this.shieldTargetOpacity !== undefined) {
       const breathe = 1 + Math.sin(t * 1.3) * 0.018;
       const m = this.shield.material;
@@ -1085,10 +952,10 @@ export class MagicScene {
     if (ar.standing) this.patrolPhase += dt * 0.55 * ar.speedFactor;
     const walk = Math.sin(this.patrolPhase);
     const step = Math.sin(this.patrolPhase * 4);
-    const rattle = ar.tickling ? Math.sin(t * 24) * 0.05 : 0;
+    const rattle = ar.tickling ? Math.sin(t * 12) * 0.09 : 0;
 
     this.armor.position.x = (1 - c) * walk * PATROL_X + rattle * 1.8;
-    this.armor.position.z = ARMOR_Z + ar.offsetZ;
+    this.armor.position.z += (ARMOR_Z + ar.offsetZ - this.armor.position.z) * Math.min(1, dt * 5);
     this.armor.position.y = -c * 0.16 + (1 - c) * Math.abs(step) * 0.028;
     this.armor.rotation.x = -c * (Math.PI / 2.25);
     this.armor.rotation.y = (1 - c) * walk * 0.22;
@@ -1102,12 +969,12 @@ export class MagicScene {
     });
 
     // 兜がごろんと外れる
-    this.armorHelmet.position.set(c * 0.46, 1.65 - c * 1.0, c * 0.55);
-    this.armorHelmet.rotation.set(c * 2.3, c * 1.2, c * 0.8);
+    this.armorHelmet.position.set(0, 1.65, 0);
+    this.armorHelmet.rotation.set(ar.tickling ? .12 : 0, Math.sin(t*.7)*.08, 0);
 
     for (const [side, group] of [[-1, this.armorArms.left], [1, this.armorArms.right]]) {
       const swing = (1 - c) * Math.sin(this.patrolPhase * 4 + (side > 0 ? Math.PI : 0)) * 0.26;
-      group.rotation.x = -0.1 + swing - c * 0.55;
+      group.rotation.x = ar.tickling ? -.9 + rattle : (ar.dented && side < 0 ? -.75 : -.1 + swing - c*.55);
       group.rotation.z = side * (0.24 + c * 0.55);
     }
 

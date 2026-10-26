@@ -508,3 +508,16 @@ select { flex: 1 1 150px; }
   .castbtn[data-state="idle"] { animation: none !important; }
   * { transition-duration: 1ms !important; }
 }
+
+/* TV / dark-fantasy revision: no virtual wand or hands. */
+.wandbar__shaft { display:none; }
+.wandbar { background:rgba(8,12,18,.58); border:1px solid #8a77584d; border-radius:8px; backdrop-filter:blur(12px); }
+.wandbar__tip { border-radius:50%; }
+.wandbar[data-mode="armed"] { box-shadow:0 0 38px color-mix(in srgb,var(--tip) 38%,transparent); }
+.camera-source { position:fixed;left:0;top:0;width:1px;height:1px;opacity:.001;pointer-events:none;z-index:-1; }
+#cameraView { max-width:100%;height:auto;border:1px solid #4d8175;border-radius:8px;margin-top:12px; }
+#cameraView[hidden] {display:none;}
+.render-notice {position:absolute;top:20%;left:10%;width:80%;padding:24px;border:1px solid #a58d61;background:#111925e8;color:#f0e4c9;line-height:1.7;}
+select {max-width:100%;background:#161f2c;color:#eee3ce;border:1px solid #697177;border-radius:6px;padding:10px;}
+.castbtn {transform:scale(.78);transform-origin:bottom right;}
+.tally {opacity:.75;}

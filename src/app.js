@@ -3,7 +3,7 @@
  *
  * 【発動の順番（要件書 5章の確定要件）】
  *   音声認識の成功 → 発動待ち時間（初期値 約1秒・保護者が調整可） → 登録色の光 → 対応する演出
- * 待ち時間のあいだに子どもが杖を振る。杖の動作・ボタン・光・色はいっさい検知しない。
+ * 2026-10-25: 音声のみでは待ち時間後、gestureモードではカメラの下向き動作候補で発動する。光・ボタン・色は検知しない。
  *
  * 【音声と手動を同じ道にする（要件書 8章・第2段階）】
  * castSpell() が唯一の入口。音声発動も手動発動も、同じ演出と同じ状態変更を使う。
@@ -17,6 +17,8 @@ import { createBrowserDiagnostics } from './diagnostics.js';
 import { SpeechEngine, detectSpeechSupport, DEFAULT_PUSH_WINDOW_MS } from './speech.js';
 import { AudioKit } from './audio.js';
 import { MagicScene } from './scene.js';
+import { CameraGesture, CastGate } from './gesture.js';
+import { createPreviewWorld } from './preview-world.js';
 
 export const SETTINGS_KEY = 'rumina-wand.settings.v1';
 export const WORLD_KEY = 'rumina-wand.world.v1';
@@ -39,7 +41,8 @@ export const DEFAULT_SETTINGS = {
   pushWindowMs: DEFAULT_PUSH_WINDOW_MS,
   lowPower: false,
   vanishCount: 0,             // 0 = 一度に全部（Vipera Evanesca の初期案）
-  enableAllSpells: false,     // 第1段階は3呪文。保護者が明示的に14呪文へ広げる
+  triggerMode: 'gesture',
+  enableAllSpells: true,     // 第1段階は3呪文。保護者が明示的に14呪文へ広げる
 };
 
 function loadJSON(key, fallback) {
@@ -63,22 +66,31 @@ function saveJSON(key, value) {
 }
 
 export class WandApp {
-  constructor({ canvas }) {
+  constructor({ canvas, sceneFactory = (c,o) => new MagicScene(c,o), gestureFactory = options => new CameraGesture(options) }) {
     this.support = detectSpeechSupport();
     this.colors = createBrowserColorStore();
     this.diag = createBrowserDiagnostics();
     this.audio = new AudioKit();
 
-    this.settings = { ...DEFAULT_SETTINGS, ...loadJSON(SETTINGS_KEY, {}) };
+    this.settings = { ...DEFAULT_SETTINGS, ...loadJSON(SETTINGS_KEY, {}), enableAllSpells: true };
+    this.castGate = new CastGate(); this.epoch = 0; this.timers = new Set();
+    this.gesture = gestureFactory({ onStroke: now => this.onStroke(now), onState: message => { if (this.status) { if (!this.gesture.active) { this.castGate.reset(); if (this.status.childMode === 'armed') this.#setStatus({childMode:'idle',childSpellId:null,childMessage:'カメラを はじめてね'}); } this.#setStatus({ cameraMessage: message, cameraActive: this.gesture.active }); } } });
     // 保存されていた値が壊れていても安全な範囲に収める
     this.settings.castDelayMs = Math.min(4000, Math.max(0, Number(this.settings.castDelayMs) || 0));
     this.settings.pushWindowMs = Math.min(15000, Math.max(1000, Number(this.settings.pushWindowMs) || DEFAULT_PUSH_WINDOW_MS));
     this.settings.volume = Math.min(1, Math.max(0, Number(this.settings.volume) ?? 0.7));
     if (!STRICTNESS_LEVELS[this.settings.strictness]) this.settings.strictness = DEFAULT_STRICTNESS;
+    if (!['voice','gesture'].includes(this.settings.triggerMode)) this.settings.triggerMode='gesture';
     if (this.settings.inputMode !== 'continuous') this.settings.inputMode = 'push';
 
     this.world = this.#loadWorld();
-    this.scene = new MagicScene(canvas, { lowPower: this.settings.lowPower });
+    try { this.scene = sceneFactory(canvas, { lowPower: this.settings.lowPower }); }
+    catch (err) {
+      this.scene = { renderError: err.message, setWorld(){}, setLowPower(){}, resize(){}, render(){}, dispose(){}, cancelEffects(){}, preview(){}, fizzle(){}, gentle(){}, charge(){}, setOrigin(){} };
+      const notice = document.createElement('div'); notice.className = 'render-notice';
+      notice.textContent = '3Dを開始できませんでした。保護者メニューは使用できます。対応ブラウザで再読み込みしてください。';
+      canvas.parentElement.append(notice);
+    }
     this.scene.setWorld(this.world);
 
     this.speech = new SpeechEngine({
@@ -154,7 +166,7 @@ export class WandApp {
   }
 
   #saveWorld() {
-    saveJSON(WORLD_KEY, this.world);
+    if (!this.previewSavedWorld) saveJSON(WORLD_KEY, this.world);
   }
 
   saveSettings() {
@@ -164,7 +176,9 @@ export class WandApp {
   }
 
   updateSettings(patch) {
-    Object.assign(this.settings, patch);
+    if (patch.triggerMode !== undefined || patch.inputMode !== undefined) this.cancelCast();
+    Object.assign(this.settings, patch, { enableAllSpells: true });
+    if (patch.triggerMode === 'voice') this.gesture.stop();
     if (patch.volume !== undefined) this.audio.setVolume(this.settings.volume);
     if (patch.lang !== undefined) this.speech.setLang(this.settings.lang);
     if (patch.pushWindowMs !== undefined) this.speech.setPushWindowMs(this.settings.pushWindowMs);
@@ -218,6 +232,7 @@ export class WandApp {
 
   /** 必ずユーザー操作から呼ぶ（マイク権限と音の解禁のため） */
   startListening() {
+    if (this.previewSavedWorld) this.endPreview();
     this.audio.unlock();
     if (!this.support.hasApi) {
       this.#setStatus({
@@ -236,6 +251,7 @@ export class WandApp {
   }
 
   stopListening(reason = 'user') {
+    this.cancelCast();
     this.speech.stop(reason);
     this.#setStatus({ listening: false, childMode: 'idle', childMessage: 'したの ボタンを おしてね', interim: '' });
   }
@@ -244,7 +260,7 @@ export class WandApp {
     const patch = { speechState: state };
     if (state === 'listening') {
       patch.listening = true;
-      if (!this.inFlight) {
+      if (!this.inFlight && !this.castGate.pending) {
         patch.childMode = 'listening';
         patch.childMessage = 'じゅもんを どうぞ';
       }
@@ -258,7 +274,7 @@ export class WandApp {
       } else if (info?.autoRestartBlocked) {
         patch.parentNote = info.hint || '自動の再開ができませんでした。もう一度「きく」を押してください。';
         patch.childMessage = 'もういちど ボタンを おしてね';
-      } else if (!this.inFlight) {
+      } else if (!this.inFlight && !this.castGate.pending) {
         patch.childMode = 'idle';
       }
     }
@@ -272,6 +288,7 @@ export class WandApp {
   }
 
   #onFinalResult({ transcript, alternatives }) {
+    if (this.inFlight || this.previewSavedWorld) return;
     const text = (transcript || '').trim();
     if (!text) {
       // 無音は呪文の失敗ではない。失敗演出を出さない。
@@ -304,19 +321,14 @@ export class WandApp {
       return;
     }
 
-    const allowed = this.settings.enableAllSpells || PHASE1_SPELL_IDS.includes(chosen.spellId);
-    if (!allowed) {
-      // 認識はできている。失敗演出は出さない（要件：認識成功と対象なし・未対応を区別する）
-      const spell = SPELL_BY_ID.get(chosen.spellId);
-      this.diag.log({ type: 'spell_not_enabled', spellId: chosen.spellId, transcript: chosenText });
-      const soundMs = this.audio.playNoTarget();
-      this.speech.suppress(soundMs + SUPPRESS_MARGIN_MS);
-      this.#setStatus({
-        childMode: 'notarget',
-        childSpellId: chosen.spellId,
-        childMessage: 'その じゅもんは まだ つかえないよ',
-        parentNote: `${spell.spelling} を認識しました。第1段階では3呪文だけ有効です（設定で14呪文を有効にできます）。`,
-      });
+    if (this.settings.triggerMode === 'gesture') {
+      if (this.inFlight || this.previewSavedWorld) return;
+      if (!this.gesture.active) {
+        this.#setStatus({ childMessage: 'カメラを はじめてね', parentNote: '保護者メニューでカメラを開始するか、音声のみへ切り替えてください。' }); return;
+      }
+      const id = this.castGate.arm(chosen.spellId, performance.now());
+      if (id) this.castSpell(id, 'gesture', { transcript: chosenText });
+      else this.#setStatus({ childMode: 'armed', childSpellId: chosen.spellId, childMessage: 'ふりおろしてね', parentNote: '認識済み。8秒以内に振り下ろしてください。' });
       return;
     }
 
@@ -324,6 +336,7 @@ export class WandApp {
   }
 
   #failure(matchResult, transcript) {
+    if(this.castGate.pending || this.inFlight)return;
     const reason = matchResult.reason === 'ambiguous'
       ? 'どの呪文か決められないため失敗にしました（曖昧なものは成功にしません）'
       : '許可リストの表記と一致しませんでした';
@@ -354,6 +367,8 @@ export class WandApp {
       return false;
     }
 
+    if (this.scene.renderError) { this.#setStatus({ parentNote: '3Dが使用できないため発動を停止しています。再読み込みしてください。' }); return false; }
+    if (this.previewSavedWorld && source !== 'preview') return false;
     const now = Date.now();
     // 約1秒の待ち時間に同じ呪文を重複発動しない
     const last = this.lastCastAt.get(spellId) || 0;
@@ -372,7 +387,8 @@ export class WandApp {
     this.inFlight = { spellId, startedAt: now, source };
 
     const color = this.colors.getColor(spellId);
-    const delay = this.settings.castDelayMs;
+    this.castGate.reset();
+    const delay = source === 'gesture' || source === 'preview' ? 0 : this.settings.castDelayMs;
 
     // 演出音が鳴る間はマイクを止める（テレビのスピーカーからの回り込みで誤発動しないように）
     const estimatedSoundMs = 1400;
@@ -403,12 +419,12 @@ export class WandApp {
     const afterDelay = () => {
       // ① 登録色の光。まず手前で杖を振った軌跡が走り、そこから対象へ飛ぶ。
       //    （子どもは画面の前で実際に杖を振っているので、画面の魔法もその動きに重なるようにする）
-      const timing = this.scene.castSpellEffect(spellId, color, { strength: 1 });
+      const timing = this.scene.castSpellEffect(spellId, color, { strength: 1.65, immediate: source === 'gesture' });
       this.audio.playSwing(spellId, timing.swingMs);
       this.#setStatus({ childMode: 'casting', childSpellId: spellId, childMessage: spell.spelling });
 
       // ② 光が対象に届いた瞬間に、対応する演出（＝状態変更）
-      setTimeout(() => {
+      this.schedule(() => {
         const options = { now: Date.now() };
         if (this.settings.vanishCount > 0) options.vanishCount = this.settings.vanishCount;
         const outcome = applySpell(this.world, spellId, options);
@@ -439,7 +455,7 @@ export class WandApp {
 
         this.speech.suppress(soundMs + SUPPRESS_MARGIN_MS);
 
-        setTimeout(() => {
+        this.schedule(() => {
           this.inFlight = null;
           if (this.status.listening) {
             this.#setStatus({ childMode: 'listening', childMessage: 'じゅもんを どうぞ', childSpellId: null });
@@ -450,13 +466,14 @@ export class WandApp {
       }, timing.impactMs);
     };
 
-    if (delay > 0) setTimeout(afterDelay, delay);
+    if (delay > 0) this.schedule(afterDelay, delay);
     else afterDelay();
     return true;
   }
 
   /** 保護者向けの「世界の初期化」。色設定は消さない。 */
   resetWorld() {
+    this.cancelCast();
     resetWorld(this.world);
     this.scene.setWorld(this.world);
     this.#saveWorld();
@@ -476,7 +493,39 @@ export class WandApp {
 
   /** 第1段階で音声が有効な呪文 */
   get enabledSpellIds() {
-    return this.settings.enableAllSpells ? SPELLS.map((s) => s.id) : [...PHASE1_SPELL_IDS];
+    return SPELLS.map((s) => s.id);
+  }
+
+  schedule(fn, ms) {
+    const epoch = this.epoch;
+    const id = setTimeout(() => { this.timers.delete(id); if (epoch === this.epoch) fn(); }, ms);
+    this.timers.add(id); return id;
+  }
+  cancelCast() {
+    this.epoch++; for (const id of this.timers) clearTimeout(id); this.timers.clear();
+    this.inFlight = null; this.lastCastAt.clear(); this.castGate.reset();
+    this.scene.cancelEffects?.(); this.audio.stopAll?.();
+    if (this.status) this.#setStatus({ childMode: 'idle', childSpellId: null });
+  }
+  onStroke(now) {
+    this.diag.log({ type: 'downstroke_candidate' });
+    if (this.settings.triggerMode !== 'gesture' || this.inFlight || this.previewSavedWorld) return;
+    // Only keep a pre-recognition stroke while microphone listening is active.
+    if (!this.castGate.pending && !this.status.listening) return;
+    const id = this.castGate.stroke(now);
+    if (id) this.castSpell(id, 'gesture');
+  }
+  previewSpell(id) {
+    this.stopListening('preview');
+    if (!this.previewSavedWorld) this.previewSavedWorld = structuredClone(this.world);
+    this.world = createPreviewWorld(id); this.scene.setWorld(this.world); this.#emitWorld();
+    this.#setStatus({ childMessage: 'じゅんびを みてね', parentNote: '確認モード：通常の世界は保存してあります。' });
+    this.schedule(() => this.castSpell(id, 'preview'), 1200);
+  }
+  endPreview() {
+    this.cancelCast();
+    if (this.previewSavedWorld) { this.world = this.previewSavedWorld; this.previewSavedWorld = null; this.scene.setWorld(this.world); this.#emitWorld(); }
+    this.#setStatus({ childMode: 'idle', childSpellId: null, childMessage: 'じゅもんを どうぞ' });
   }
 
   snapshotForReport() {
@@ -515,7 +564,8 @@ export class WandApp {
       if (!this.running) return;
       const now = performance.now();
       if (!document.hidden) {
-        this.#measureFps(now);
+        if (this.castGate.expire(now)) this.#setStatus({ childMode: 'idle', childSpellId: null, childMessage: 'もういちど となえてね' });
+        if (!this.scene.renderError) this.#measureFps(now);
         const changed = tickWorld(this.world, Date.now());
         if (changed.changed) {
           this.scene.setWorld(this.world);
@@ -561,6 +611,7 @@ export class WandApp {
   dispose() {
     this.running = false;
     if (this.rafId) cancelAnimationFrame(this.rafId);
+    this.cancelCast(); this.gesture.dispose();
     this.speech.dispose();
     this.scene.dispose();
   }

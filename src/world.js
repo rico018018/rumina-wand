@@ -49,10 +49,10 @@ export function createInitialWorld() {
       slot: i,
     })),
     shield: { active: false, level: 0 },
-    // 人に作用する8呪文の対象。人型ではなく、大広間に立つ「動くよろい」。
+    // 人に作用する8呪文の対象。人型ではなく、大広間に立つ「動くてき」。
     armor: {
       standing: true,      // Stupefy で崩れ、Rennervate で立ち上がる
-      dented: false,       // Everte Statum でへこみ、Episkey で直る
+      dented: false,       // Everte Statum でいたみ、Episkey で直る
       tickling: false,     // Rictusempra
       tickleUntil: null,
       speedFactor: 1,      // Impedimenta（見回りの歩き）
@@ -80,7 +80,7 @@ function atCap(message) {
 /** 崩れている間に実行すると不整合になる呪文 */
 function requiresStanding(world, what) {
   if (world.armor.standing) return null;
-  return noTarget(`よろいは くずれているよ。${what}`);
+  return noTarget(`てきは くずれているよ。${what}`);
 }
 
 /**
@@ -150,48 +150,48 @@ export function applySpell(world, spellId, options = {}) {
 
     case 'stupefy': {
       if (!a.standing) {
-        result = already('よろいは もう くずれているよ');
+        result = already('てきは もう くずれているよ');
         break;
       }
       a.standing = false;
       a.tickling = false;
       a.tickleUntil = null;
       a.onSoftLanding = true;
-      result = ok('よろいが がしゃんと くずれた', [{ type: 'armor_collapsed' }]);
+      result = ok('てきが たおれて うごかなくなった', [{ type: 'armor_collapsed' }]);
       break;
     }
 
     case 'rennervate': {
       if (a.standing) {
         // 元から立っている場合は回復の光のみ（世界は変えない）
-        result = noTarget('よろいは ちゃんと たっているよ');
+        result = noTarget('てきは ちゃんと たっているよ');
         break;
       }
       a.standing = true;
       a.onSoftLanding = false;
-      result = ok('ぶひんが あつまって たちあがった', [{ type: 'armor_reassembled' }]);
+      result = ok('てきが めをさまして たちあがった', [{ type: 'armor_reassembled' }]);
       break;
     }
 
     case 'episkey': {
       if (!a.dented) {
-        result = noTarget('へこんで いないよ');
+        result = noTarget('いたがって いないよ');
         break;
       }
       a.dented = false;
-      result = ok('へこみが もとに もどった', [{ type: 'armor_repaired' }]);
+      result = ok('いたみが もとに もどった', [{ type: 'armor_repaired' }]);
       break;
     }
 
     case 'expelliarmus': {
       if (!a.holdsSword) {
-        result = noTarget('よろいは けんを もっていないよ');
+        result = noTarget('てきは つえを もっていないよ');
         break;
       }
       a.holdsSword = false;
       const sword = { id: makeId('sword'), seed: Math.random() };
       world.droppedSwords.push(sword);
-      result = ok('けんが とんでいった', [{ type: 'sword_disarmed', id: sword.id }]);
+      result = ok('つえが とんでいった', [{ type: 'sword_disarmed', id: sword.id }]);
       break;
     }
 
@@ -219,7 +219,7 @@ export function applySpell(world, spellId, options = {}) {
       }
       const slug = { id: makeId('slug'), seed: Math.random(), bornAt: now };
       world.slugs.push(slug);
-      result = ok('かぶとから ナメクジが おちた', [{ type: 'slug_added', id: slug.id }]);
+      result = ok('かめんの したから ナメクジが おちた', [{ type: 'slug_added', id: slug.id }]);
       break;
     }
 
@@ -254,7 +254,7 @@ export function applySpell(world, spellId, options = {}) {
     }
 
     case 'finite_incantatem': {
-      // 全追加物・破片・盾・状態異常を除去し、よろい・岩・宝物供給源を初期状態へ戻す。
+      // 全追加物・破片・盾・状態異常を除去し、てき・岩・宝物供給源を初期状態へ戻す。
       const fresh = createInitialWorld();
       const revision = world.revision;
       for (const key of Object.keys(fresh)) world[key] = fresh[key];
@@ -271,9 +271,9 @@ export function applySpell(world, spellId, options = {}) {
       }
       a.offsetZ = Math.max(KNOCKBACK_LIMIT, a.offsetZ - KNOCKBACK_STEP);
       a.onSoftLanding = true;
-      // 初期案：吹き飛ばされると小さなへこみができる（Episkey に対象を作るため）
+      // 初期案：吹き飛ばされると小さないたみができる（Episkey に対象を作るため）
       a.dented = true;
-      result = ok('よろいが うしろへ とんでいった', [{ type: 'armor_knocked_back', offsetZ: a.offsetZ }]);
+      result = ok('てきが うしろへ とんでいった', [{ type: 'armor_knocked_back', offsetZ: a.offsetZ }]);
       break;
     }
 

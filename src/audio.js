@@ -41,7 +41,7 @@ const FALLBACK = { swing: { start: 320, end: 640, noise: 0.3 }, impact: { type: 
 
 export class AudioKit {
   constructor() {
-    this.ctx = null;
+    this.ctx = null; this.sources = new Set();
     this.master = null;
     this.volume = 0.7;
     this.unlockError = null;
@@ -71,6 +71,7 @@ export class AudioKit {
       }
       if (this.ctx.state === 'suspended') this.ctx.resume();
       const osc = this.ctx.createOscillator();
+    this.sources.add(osc); osc.onended = () => this.sources.delete(osc);
       const g = this.ctx.createGain();
       g.gain.value = 0.0001;
       osc.connect(g).connect(this.master);
@@ -103,6 +104,8 @@ export class AudioKit {
     if (this.master) this.master.gain.value = this.volume * MASTER_CEILING;
   }
 
+  stopAll() { for (const source of this.sources) { try { source.stop(); } catch (_) {} } this.sources.clear(); }
+
   get ready() { return Boolean(this.ctx && this.master); }
 
   // ------------------------------------------------------------ 部品
@@ -110,6 +113,7 @@ export class AudioKit {
   #tone({ freq, at, dur, type = 'sine', gain = 0.5, slideTo = null, vibrato = 0, detune = 0 }) {
     const ctx = this.ctx;
     const osc = ctx.createOscillator();
+    this.sources.add(osc); osc.onended = () => this.sources.delete(osc);
     osc.type = type;
     osc.detune.value = detune;
     osc.frequency.setValueAtTime(freq, at);
@@ -123,6 +127,7 @@ export class AudioKit {
     osc.connect(env).connect(this.master);
     if (vibrato > 0) {
       const lfo = ctx.createOscillator();
+    this.sources.add(lfo); lfo.onended = () => this.sources.delete(lfo);
       const lg = ctx.createGain();
       lfo.frequency.value = 7;
       lg.gain.value = freq * vibrato;
@@ -138,6 +143,7 @@ export class AudioKit {
   #noise({ at, dur, gain = 0.3, from = 900, to = 300, q = 1.2, type = 'bandpass' }) {
     const ctx = this.ctx;
     const src = ctx.createBufferSource();
+    this.sources.add(src); src.onended = () => this.sources.delete(src);
     src.buffer = this.noiseBuffer;
     src.loop = true;
     const filt = ctx.createBiquadFilter();
@@ -241,6 +247,7 @@ export class AudioKit {
     const at = this.ctx.currentTime;
     const dur = Math.max(0.12, durationMs / 1000);
     const osc = this.ctx.createOscillator();
+    this.sources.add(osc); osc.onended = () => this.sources.delete(osc);
     osc.type = 'sine';
     osc.frequency.setValueAtTime(190, at);
     osc.frequency.linearRampToValueAtTime(430, at + dur);

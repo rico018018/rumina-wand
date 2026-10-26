@@ -22,7 +22,7 @@ const TALLY_ICONS = [
   { key: 'slugs', icon: '🐌', label: 'ナメクジ' },
   { key: 'rocksLeft', icon: '🪨', label: 'いわ' },
   { key: 'debris', icon: '✨', label: 'はへん' },
-  { key: 'swordsOnFloor', icon: '⚔️', label: 'おちた けん' },
+  { key: 'swordsOnFloor', icon: '✦', label: 'おちた つえ' },
 ];
 
 const app = new WandApp({ canvas: $('world') });
@@ -40,7 +40,7 @@ function paintWand(status) {
   wandbar.dataset.mode = status.childMode;
   wandLabel.textContent = status.childMessage;
   // 発動中・プレビュー中は、その呪文の登録色を杖先に出す
-  if (status.childSpellId && (status.childMode === 'casting' || status.childMode === 'notarget')) {
+  if (status.childSpellId && (status.childMode === 'armed' || status.childMode === 'casting' || status.childMode === 'notarget')) {
     wandbar.style.setProperty('--tip', app.colors.getColor(status.childSpellId));
   } else {
     wandbar.style.removeProperty('--tip');
@@ -96,7 +96,7 @@ function paintCastButton(status) {
     castBtnText.textContent = 'きいてるよ';
   } else {
     castBtn.dataset.state = 'idle';
-    castBtnIcon.textContent = '🪄';
+    castBtnIcon.textContent = '✦';
     castBtnText.textContent = 'じゅもんを いう';
   }
   castBtn.setAttribute('aria-label', castBtnText.textContent);
@@ -239,6 +239,7 @@ function buildManualButtons() {
     btn.title = spell.effectSummary;
     btn.addEventListener('click', () => {
       app.audio.unlock();
+      stopTour(); if(app.previewSavedWorld)app.endPreview();
       app.castSpell(spell.id, 'manual');
     });
     manualGrid.append(btn);
@@ -316,13 +317,6 @@ langSel.addEventListener('change', () => {
 const vanishSel = $('vanishCount');
 vanishSel.value = String(app.settings.vanishCount);
 vanishSel.addEventListener('change', () => app.updateSettings({ vanishCount: Number(vanishSel.value) }));
-
-const enableAll = $('enableAll');
-enableAll.checked = app.settings.enableAllSpells;
-enableAll.addEventListener('change', () => {
-  app.updateSettings({ enableAllSpells: enableAll.checked });
-  paintManualButtons();
-});
 
 const lowPower = $('lowPower');
 lowPower.checked = app.settings.lowPower;
@@ -594,6 +588,7 @@ function paintSpeechStats() {
 function paintFps() {
   const f = app.fps;
   const el = $('fpsLine');
+  if (app.scene.renderError) { el.textContent='3D未起動：描画速度は測定できません'; return; }
   if (f.samples < 2) {
     el.textContent = '測定中…';
     return;
@@ -690,10 +685,10 @@ $('limitations').innerHTML = `
   <h3>遊びの初期案（要件書7章の未指定部分）</h3>
   <ul>
     <li>増える上限：たからもの ${CAPS.treasures}個 / ヘビ ${CAPS.snakes}匹 / ナメクジ ${CAPS.slugs}匹。壊せる岩は ${INITIAL_ROCK_COUNT}個。</li>
-    <li>人に作用する8呪文の対象は、大広間に立つ<strong>動くよろい</strong>です（子ども自身が杖を振る側なので、画面の中に分身を置いていません）。</li>
-    <li>Everte Statum で小さなへこみができ、Episkey の対象になります（表現は控えめ）。</li>
+    <li>人に作用する8呪文の対象は、大広間に立つ<strong>デスイーターの仮面と黒いローブの敵</strong>です（子ども自身が杖を振る側なので、画面の中に分身を置いていません）。</li>
+    <li>Everte Statum で小さないたみができ、Episkey の対象になります（表現は控えめ）。</li>
     <li>くすぐり・鈍足は有限時間で元に戻り、初期化でも解除されます。</li>
-    <li>第1段階の音声は ${PHASE1_SPELL_IDS.join(' / ')} の3呪文です。手動ボタンは14呪文すべて使えます。</li>
+    <li>全14呪文が音声・手動ともに最初から有効です。</li>
   </ul>`;
 
 // ---------------------------------------------------------------- 起動時のひとこと
@@ -705,3 +700,39 @@ app.diag.log({
   secure: String(app.support.isSecureContext),
   ua: app.support.userAgent,
 });
+
+// Camera is started only by an explicit parent action. Never automatically request permission.
+const triggerMode = $('triggerMode'); triggerMode.value=app.settings.triggerMode;
+triggerMode.addEventListener('change',()=>app.updateSettings({triggerMode:triggerMode.value}));
+app.gesture.preview=$('cameraView');
+$('cameraStart').addEventListener('click',async()=>{
+  app.audio.unlock(); $('cameraStart').disabled=true;
+  try { await app.gesture.start($('cameraFacing').value); }
+  catch(err){ $('cameraStatus').textContent=`開始できません：${err.message}。音声のみでも遊べます。`; }
+  finally { $('cameraStart').disabled=false; }
+});
+$('cameraStop').addEventListener('click',()=>{app.cancelCast();app.gesture.stop();});
+$('cameraPreview').addEventListener('change',()=>{$('cameraView').hidden=!$('cameraPreview').checked;});
+$('gestureRegion').addEventListener('change',()=>{
+  const region=$('gestureRegion').value;
+  app.gesture.roi=region==='left'?{x:.05,y:.05,w:.45,h:.8}:region==='right'?{x:.5,y:.05,w:.45,h:.8}:{x:.15,y:.08,w:.7,h:.75};
+  app.gesture.gate.reset();
+});
+$('gestureTravel').addEventListener('input',()=>{app.gesture.gate.travel=Number($('gestureTravel').value);$('gestureTravelOut').textContent=`${Math.round(app.gesture.gate.travel*100)}%（小さいほど敏感）`;});
+$('originX').value=app.settings.originX||0;app.scene.setOrigin(Number($('originX').value));
+$('originX').addEventListener('input',()=>{const originX=Number($('originX').value);app.scene.setOrigin(originX);app.updateSettings({originX});});
+app.onStatus(status=>{if(status.cameraMessage)$('cameraStatus').textContent=status.cameraMessage;});
+let tourTimer=null, tourIndex=0;
+for(const spell of SPELLS){const o=document.createElement('option');o.value=spell.id;o.textContent=spell.spelling;$('previewSpell').append(o);}
+function stopTour(){clearTimeout(tourTimer);tourTimer=null;}
+function playPreview(){app.audio.unlock();app.previewSpell($('previewSpell').value);setPanel(false);$('previewStatus').textContent=$('previewSpell').selectedOptions[0].textContent;}
+$('previewPlay').addEventListener('click',()=>{stopTour();playPreview();});
+$('previewAll').addEventListener('click',()=>{stopTour();tourIndex=0; const next=()=>{
+  if(tourIndex>=SPELLS.length){app.endPreview();$('previewStatus').textContent='14呪文の確認が終了しました';return;}
+  $('previewSpell').value=SPELLS[tourIndex++].id;playPreview();tourTimer=setTimeout(next,7000);
+};next();});
+$('previewEnd').addEventListener('click',()=>{stopTour();app.endPreview();$('previewStatus').textContent='通常の世界に戻りました';});
+// Other parent actions leave the isolated preview and cancel its scheduled tour.
+for(const id of ['btnResetWorld','btnStart','btnStop','castBtn'])$(id).addEventListener('click',()=>{stopTour();if(app.previewSavedWorld)app.endPreview();},true);
+window.addEventListener('pagehide',()=>{stopTour();app.stopListening('pagehide');app.gesture.stop();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){stopTour();app.stopListening('hidden');app.gesture.stop();}});

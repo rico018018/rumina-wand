@@ -28,7 +28,7 @@
       <!-- 杖の形をした状態表示。杖先の色が、いまの呪文の登録色になる -->
       <div class="wandbar" id="wandbar" data-mode="idle">
         <span class="wandbar__tip" id="wandTip"></span>
-        <span class="wandbar__shaft"></span>
+        
         <span class="wandbar__label" id="wandLabel">したの ボタンを おしてね</span>
         <svg class="wandbar__timer" id="wandTimer" viewBox="0 0 44 44" aria-hidden="true">
           <circle class="wandbar__timerTrack" cx="22" cy="22" r="18"></circle>
@@ -42,7 +42,7 @@
           <circle class="castbtn__ringTrack" cx="60" cy="60" r="54"></circle>
           <circle class="castbtn__ringArc" id="castBtnArc" cx="60" cy="60" r="54"></circle>
         </svg>
-        <span class="castbtn__icon" id="castBtnIcon" aria-hidden="true">🪄</span>
+        <span class="castbtn__icon" id="castBtnIcon" aria-hidden="true">✦</span>
         <span class="castbtn__text" id="castBtnText">じゅもんを いう</span>
       </button>
 
@@ -92,6 +92,28 @@
       <p class="status status--note" id="parentNote"></p>
     </section>
 
+    <section class="card">
+      <h2 class="card__title">振り下ろして発動</h2>
+      <p class="note">iPhoneをテレビ付近に固定し、娘さんへカメラを向けます。画像内の下向きの動きを検知する試作です。杖や人を識別するものではなく、持ち替え等で誤検知する場合があります。</p>
+      <div class="row"><label for="triggerMode">発動方法</label><select id="triggerMode"><option value="gesture">音声＋振り下ろし</option><option value="voice">音声のみ（待ち時間後に発動）</option></select></div>
+      <div class="row"><label for="cameraFacing">カメラ</label><select id="cameraFacing"><option value="user">画面側</option><option value="environment">背面</option></select></div>
+      <div class="row row--buttons"><button class="btn btn--primary" id="cameraStart">カメラ開始</button><button class="btn" id="cameraStop">カメラ停止</button></div>
+      <p class="status" id="cameraStatus" role="status">カメラ停止</p>
+      <label class="check"><input id="cameraPreview" type="checkbox"><span>配置確認の映像を表示（テレビにも映ります）</span></label>
+      <canvas id="cameraView" width="320" height="240" hidden aria-label="カメラ配置確認"></canvas>
+      <div class="row"><label for="gestureRegion">検知範囲</label><select id="gestureRegion"><option value="center">中央</option><option value="left">映像の左側</option><option value="right">映像の右側</option></select></div>
+      <div class="row"><label for="gestureTravel">振りの大きさ</label><input id="gestureTravel" type="range" min="0.035" max="0.16" step="0.005" value="0.065"><output id="gestureTravelOut">標準</output></div>
+      <div class="row"><label for="originX">魔法の発射位置</label><input id="originX" type="range" min="-1.6" max="1.6" step="0.1" value="0"></div>
+      <p class="note">映像は端末内で処理し、録画・保存・送信しません。ページを離れるとカメラを停止します。実物の杖との音の一致、振り下ろしの精度と遅延は実機未検証です。</p>
+    </section>
+    <section class="card">
+      <h2 class="card__title">全14呪文の確認</h2>
+      <p class="note">対象と状態を用意してから再生します。通常の世界には保存しません。音声・カメラは不要です。</p>
+      <select id="previewSpell" aria-label="確認する呪文"></select>
+      <div class="row row--buttons"><button class="btn" id="previewPlay">この呪文を再生</button><button class="btn" id="previewAll">14呪文を順番に再生</button><button class="btn" id="previewEnd">確認を終了</button></div>
+      <p id="previewStatus" class="note" role="status"></p>
+    </section>
+
     <!-- 2. 手動発動 --------------------------------------------------------- -->
     <section class="card">
       <h2 class="card__title">じゅもんを 手で だす</h2>
@@ -108,7 +130,7 @@
         <input type="range" id="castDelay" min="0" max="3000" step="100" value="1000">
         <output id="castDelayOut">1000ms</output>
       </div>
-      <p class="note">認識が確定してから光が出るまでの時間。この間に杖を振ります。</p>
+      <p class="note">音声のみ・手動発動の待ち時間。振り下ろしモードでは検知後すぐに発動します。</p>
 
       <div class="row">
         <label class="row__label" for="volume">音量</label>
@@ -144,7 +166,7 @@
         </select>
       </div>
 
-      <label class="check"><input type="checkbox" id="enableAll"><span>14呪文すべてを音声で有効にする<em>（第2段階。実機での聞き分けは未検証）</em></span></label>
+      <p class="note">全14呪文が最初から有効です。</p>
       <label class="check"><input type="checkbox" id="lowPower"><span>軽量描画にする<em>（発熱・コマ落ちが気になるとき）</em></span></label>
     </section>
 
@@ -152,7 +174,7 @@
     <section class="card">
       <h2 class="card__title">じゅもんの ひかりの いろ</h2>
       <p class="note">
-        玩具の杖と同じ色がテレビの中でも光るようにするための設定です。実物の色を検知する機能ではありません（カメラは使いません）。
+        玩具の杖と同じ色がテレビの中でも光るようにするための設定です。実物の色を検知する機能ではありません（カメラは動作検知だけに使用）。
         <strong>初期値は購入品の説明書に記載された色です。</strong>
         ただし説明書に書かれているのは色の名前なので、「黄色」をどの黄色にするかという具体的な値は開発側の解釈です。
         杖を光らせてテレビと見比べ、ずれていたら調整してください。合っていたら各行の「実物の杖で確認した色」にチェックを入れてください。

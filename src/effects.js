@@ -334,15 +334,16 @@ export class SpellEffects {
    * @returns {{swingMs:number, impactMs:number, totalMs:number}} 時間の目安（音と状態変更の同期に使う）
    */
   cast(spellId, hexColor, target, options = {}) {
+    this.particles.visible=true;
     const cfg = SWINGS[spellId] || DEFAULT_SWING;
     const color = new THREE.Color(hexColor);
     const color2 = shiftHue(color, cfg.hue);
     const strength = options.strength ?? 1;
-    const dir = Math.random() < 0.5 ? 1 : -1;
+    const dir = 1;
 
-    const swingMs = cfg.swingMs;
+    const swingMs = options.immediate ? 0 : Math.min(180, cfg.swingMs);
     const flyMs = 300;
-    const burstMs = 900;
+    const burstMs = 1100;
 
     this.active.push({
       spellId, cfg, color, color2, dir, strength,
@@ -507,7 +508,7 @@ export class SpellEffects {
         const t = el / fx.swingMs;
         const eased = t * t * (3 - 2 * t);
         const [sx, sy] = swingPath(fx.cfg.kind, eased, fx.dir);
-        const point = new THREE.Vector3(sx * SWING_W * 0.5, SWING_Y + sy * SWING_H * 0.5, SWING_PLANE_Z);
+        const point = new THREE.Vector3((this.originX || 0) + sx * .4 * t, -.2 + t*.65, SWING_PLANE_Z);
         this.#pushTrail(point, t === 0);
         trailOp = Math.max(trailOp, Math.min(1, t * 4) * 0.95 * fx.strength);
         this.trailMat.uniforms.uColor.value.copy(fx.color);
@@ -530,14 +531,17 @@ export class SpellEffects {
 
       // 振り終わりの位置＝魔法が飛び出す点
       const [ex, ey] = swingPath(fx.cfg.kind, 1, fx.dir);
-      const from = new THREE.Vector3(ex * SWING_W * 0.5, SWING_Y + ey * SWING_H * 0.5, SWING_PLANE_Z);
+      const from = new THREE.Vector3(this.originX || 0, -.2, SWING_PLANE_Z);
 
       // --- 2) 飛翔 ---
       if (el < fx.swingMs + fx.flyMs) {
         const t = (el - fx.swingMs) / fx.flyMs;
         const eased = t * t;
         const pos = from.clone().lerp(fx.target, eased);
-        pos.y += Math.sin(t * Math.PI) * 0.8;
+        const arc = ['accio','protego','rennervate','episkey'].includes(fx.spellId) ? .8 : .12;
+        pos.y += Math.sin(t*Math.PI)*arc;
+        if (['rictusempra','serpensortia','slugulas_eructo'].includes(fx.spellId)) pos.x += Math.sin(t*Math.PI*3)*.4;
+        this.#pushTrail(pos, t < .1); this.trailMat.uniforms.uColor.value.copy(fx.color);
         this.boltOrb.position.copy(pos);
         this.boltOrb.material.color.copy(fx.color);
         this.boltOrb.scale.setScalar(1.0 + t * 0.7);
@@ -644,7 +648,7 @@ export class SpellEffects {
       // 進行方向に直交する向きへ、先細りの幅を取る
       const side = new THREE.Vector3().crossVectors(tmp, up).normalize();
       const taper = 1 - i / pts.length;
-      const halfW = 0.26 * taper + 0.02;
+      const halfW = 0.34 * taper + 0.025;
       const i6 = i * 6;
       arr[i6] = a.x + side.x * halfW;
       arr[i6 + 1] = a.y + side.y * halfW;
@@ -660,6 +664,13 @@ export class SpellEffects {
     alphaAttr.needsUpdate = true;
   }
 
+  cancel() {
+    this.active=[]; this.chargeState=null; this.chargeUntil=0; this.trailLive=false;
+    this.p.life.fill(0); this.p.size.fill(0);
+    for(const name of ['gatherOrb','boltOrb','burstOrb','ring','dome']) if(this[name]?.material)this[name].material.opacity=0;
+    this.trail.visible=false; this.light.intensity=0; this.nearLight.intensity=0;
+    this.particles.geometry.attributes.size.needsUpdate=true;
+  }
   dispose() {
     this.particles.geometry.dispose();
     this.particleMat.dispose();
