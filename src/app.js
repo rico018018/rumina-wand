@@ -1,3 +1,4 @@
+import { enemyVariant } from './enemy-variants.js';
 /**
  * 全体の組み立て。音声認識・状態管理・描画・音を1本の発動パイプラインにつなぐ。
  *
@@ -40,6 +41,7 @@ export const DEFAULT_SETTINGS = {
   volume: 0.7,
   pushWindowMs: DEFAULT_PUSH_WINDOW_MS,
   lowPower: false,
+  enemyVariant: 'silver',
   vanishCount: 0,             // 0 = 一度に全部（Vipera Evanesca の初期案）
   triggerMode: 'gesture',
   enableAllSpells: true,     // 第1段階は3呪文。保護者が明示的に14呪文へ広げる
@@ -83,8 +85,9 @@ export class WandApp {
     if (!['voice','gesture'].includes(this.settings.triggerMode)) this.settings.triggerMode='gesture';
     if (this.settings.inputMode !== 'continuous') this.settings.inputMode = 'push';
 
+    this.settings.enemyVariant = enemyVariant(this.settings.enemyVariant).id;
     this.world = this.#loadWorld();
-    try { this.scene = sceneFactory(canvas, { lowPower: this.settings.lowPower }); }
+    try { this.scene = sceneFactory(canvas, { lowPower: this.settings.lowPower, enemyVariant: this.settings.enemyVariant }); }
     catch (err) {
       this.scene = { renderError: err.message, setWorld(){}, setLowPower(){}, resize(){}, render(){}, dispose(){}, cancelEffects(){}, preview(){}, fizzle(){}, gentle(){}, charge(){}, setOrigin(){} };
       const notice = document.createElement('div'); notice.className = 'render-notice';
@@ -176,6 +179,11 @@ export class WandApp {
   }
 
   updateSettings(patch) {
+    if (patch.enemyVariant !== undefined) {
+      patch = {...patch, enemyVariant: enemyVariant(patch.enemyVariant).id};
+      this.cancelCast();
+      this.scene.setEnemyVariant?.(patch.enemyVariant);
+    }
     if (patch.triggerMode !== undefined || patch.inputMode !== undefined) this.cancelCast();
     Object.assign(this.settings, patch, { enableAllSpells: true });
     if (patch.triggerMode === 'voice') this.gesture.stop();

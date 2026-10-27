@@ -19,7 +19,7 @@ import { CinemaPlate } from './cinema.js';
 import { floorMaps, wallMaps, steelMaps, rockMaps, woodMaps, starSprite, glowSprite } from './textures.js';
 import { SpellEffects } from './effects.js';
 import { applyPhotographicStone, masonryUV } from './photo-materials.js';
-import { createDarkWizard } from './dark-wizard.js';
+import { createDarkWizard, disposeDarkWizard } from './dark-wizard.js';
 
 const NIGHT = 0x070b1e;
 const GOLD = 0xd8a94e;
@@ -154,9 +154,10 @@ function makeSkyTexture() {
 }
 
 export class MagicScene {
-  constructor(canvas, { lowPower = false } = {}) {
+  constructor(canvas, { lowPower = false, enemyVariant = 'silver' } = {}) {
     this.canvas = canvas;
     this.lowPower = lowPower;
+    this.enemyVariant = enemyVariant;
     this.clock = new THREE.Clock();
     this.pools = { snakes: [], treasures: [], slugs: [], debris: [], swords: [] };
     this.world = null;
@@ -731,8 +732,12 @@ export class MagicScene {
    * 人に作用する8呪文の対象。大広間を見回る「動くよろい」。
    * Impedimenta が効いたことが見えるよう、左右にゆっくり歩かせる。
    */
-  #buildArmor() {
-    const w = createDarkWizard();
+  #buildArmor() { this.setEnemyVariant(this.enemyVariant); }
+
+  setEnemyVariant(id) {
+    const w = createDarkWizard(id);
+    if(this.armor) disposeDarkWizard(this.armor);
+    this.enemyVariant=w.root.userData.variantId;
     this.armor=w.root; this.armorHelmet=w.head; this.armorArms=w.arms; this.armorLegs=w.legs;
     this.heldSword=w.wand; this.dentMark=w.pain; this.laughMark=w.laugh;
     this.armor.position.z=ARMOR_Z; this.scene.add(this.armor);
@@ -1017,6 +1022,7 @@ export class MagicScene {
   }
 
   dispose() {
+    disposeDarkWizard(this.armor);
     this.cinema?.dispose();
     if (this.envRT) this.envRT.dispose();
     this.effects.dispose();

@@ -1,3 +1,4 @@
+import { ENEMY_VARIANTS, enemyVariant } from './enemy-variants.js';
 /**
  * 画面の組み立てと操作の配線。
  *
@@ -346,6 +347,13 @@ langSel.addEventListener('change', () => {
 const vanishSel = $('vanishCount');
 vanishSel.value = String(app.settings.vanishCount);
 vanishSel.addEventListener('change', () => app.updateSettings({ vanishCount: Number(vanishSel.value) }));
+
+const enemySelect = $('enemyVariant');
+for (const v of ENEMY_VARIANTS) {const option=document.createElement('option');option.value=v.id;option.textContent=v.name;enemySelect.append(option);}
+enemySelect.value=app.settings.enemyVariant;
+const paintEnemy=()=>{$('enemyDescription').textContent=enemyVariant(app.settings.enemyVariant).description;};
+paintEnemy();
+enemySelect.addEventListener('change',()=>{app.updateSettings({enemyVariant:enemySelect.value});paintEnemy();});
 
 const lowPower = $('lowPower');
 lowPower.checked = app.settings.lowPower;
