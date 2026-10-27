@@ -157,6 +157,8 @@ function paintDevices() {
     const state = deviceState(name, source);
     const btn = $(name + 'Toggle');
     btn.dataset.state = state.tone;
+    btn.dataset.compact = state.tone === 'on' ? 'ON' : state.tone === 'pending' ? '待機' : state.tone === 'error' ? 'OFF!' : 'OFF';
+    btn.title = `${name === 'mic' ? 'マイク' : 'カメラ'}：${state.label}。${state.action}`;
     btn.setAttribute('aria-pressed', String(state.enabled));
     btn.setAttribute('aria-label', `${name === 'mic' ? 'マイク' : 'カメラ'}：${state.label}。${state.action}`);
     $(name + 'State').textContent = state.label;
@@ -167,6 +169,7 @@ function paintDevices() {
     app.settings.triggerMode === 'gesture' && !app.gesture.active ? '振り下ろしで遊ぶには、カメラをONにしてください' :
     app.settings.triggerMode === 'voice' ? '音声のみで発動' : '音声 ＋ 振り下ろしで発動';
   $('deviceHint').textContent = note;
+  $('deviceHint').dataset.attention = String(Boolean(app.gesture.error || app.speech.error));
   $('cameraStart').disabled = app.gesture.starting || app.gesture.active;
   $('cameraStop').disabled = !app.gesture.starting && !app.gesture.active;
 }
@@ -220,6 +223,7 @@ $('btnStart').addEventListener('click', () => {
   app.startListening();
 });
 $('btnStop').addEventListener('click', () => app.stopListening());
+$('stageReset').addEventListener('click', () => app.resetWorld());
 $('btnResetWorld').addEventListener('click', () => {
   if (confirm('世界を初期状態に戻します。色設定は消えません。よろしいですか？')) app.resetWorld();
 });
@@ -772,7 +776,7 @@ $('previewAll').addEventListener('click',()=>{stopTour();tourIndex=0; const next
 };next();});
 $('previewEnd').addEventListener('click',()=>{stopTour();app.endPreview();$('previewStatus').textContent='通常の世界に戻りました';});
 // Other parent actions leave the isolated preview and cancel its scheduled tour.
-for(const id of ['btnResetWorld','btnStart','btnStop','castBtn','micToggle'])$(id).addEventListener('click',()=>{stopTour();if(app.previewSavedWorld)app.endPreview();},true);
+for(const id of ['stageReset','btnResetWorld','btnStart','btnStop','castBtn','micToggle'])$(id).addEventListener('click',()=>{stopTour();if(app.previewSavedWorld)app.endPreview();},true);
 window.addEventListener('pagehide',()=>{stopTour();app.stopListening('pagehide');app.gesture.stop();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stopTour();app.stopListening('hidden');app.gesture.stop();}});
 
