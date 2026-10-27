@@ -56,7 +56,7 @@ function maskGeometry(v) {
 export function createDarkWizard(id = 'silver') {
   const v=enemyVariant(id);
   const root=new THREE.Group(),weave=fabric(),metal=steelMaps();
-  const cloth=new THREE.MeshStandardMaterial({color:v.cloth,roughness:.97,metalness:0,bumpMap:weave,bumpScale:.006,side:THREE.DoubleSide});
+  const cloth=new THREE.MeshPhysicalMaterial({color:v.cloth,roughness:.91,metalness:0,bumpMap:weave,bumpScale:.004,sheen:.35,sheenColor:0x504c48,sheenRoughness:.85,side:THREE.DoubleSide});
   const lining=new THREE.MeshStandardMaterial({color:0x0a0d0d,roughness:1,side:THREE.DoubleSide});
   const leather=new THREE.MeshStandardMaterial({color:0x181a18,roughness:.62,bumpMap:weave,bumpScale:.003});
   const silver=new THREE.MeshStandardMaterial({color:v.metal,map:metal.map,roughnessMap:metal.roughnessMap,bumpMap:metal.roughnessMap,bumpScale:.0015,roughness:v.roughness,metalness:.83,side:THREE.DoubleSide});
@@ -78,6 +78,10 @@ export function createDarkWizard(id = 'silver') {
     mantle.userData.rest=mantle.geometry.attributes.position.array.slice();root.userData.clothMeshes.push(mantle);
   }
   const clasp=add(root,new THREE.TorusGeometry(.029,.006,6,18),silver,[0,1.43,.163]);
+  // Fitted leather waist belt follows the torso; understated metal fasteners.
+  add(root,drape([[1.025,.242],[1.085,.242]],{depth:.70,fold:.002}),leather,[0,0,.005]);
+  const buckle=add(root,new THREE.TorusGeometry(.028,.004,6,20),silver,[0,1.055,.18]);buckle.scale.x=1.3;
+  for(let y=1.17;y<1.4;y+=.065)add(root,new THREE.SphereGeometry(.009,10,8),engraved,[.023,y,.205]);
   const legs=[];
   for(const side of [-1,1]) {
     const leg=new THREE.Group();leg.position.set(side*.125,.72,0);root.add(leg);
@@ -90,6 +94,13 @@ export function createDarkWizard(id = 'silver') {
   add(head,new THREE.SphereGeometry(1,32,24),lining,[0,-.015,.09],[.17,.24,.13]);
   hood.scale.set(1,v.hood,1.04);
   add(head,maskGeometry(v),silver,[0,0,0]);
+  // Recessed human eyes: no glowing cartoon eye dots. Faceplate remains in front.
+  const eyeWhite=new THREE.MeshStandardMaterial({color:0x756b5f,roughness:.7});
+  const iris=new THREE.MeshStandardMaterial({color:0x221a13,roughness:.4});
+  for(const side of [-1,1]){
+    add(head,new THREE.SphereGeometry(1,20,12),eyeWhite,[side*.068,.044,.234],[.034,.015,.014]);
+    add(head,new THREE.SphereGeometry(1,16,10),iris,[side*.068,.044,.246],[.011,.013,.004]);
+  }
   // Etched face ornament stays thin and irregular like engraved metal.
   for(const side of [-1,1])for(let j=0;j<3;j++){
     const a=.012*j;
@@ -103,6 +114,9 @@ export function createDarkWizard(id = 'silver') {
     add(arm,new THREE.SphereGeometry(1,18,12),leather,[0,-.525,.015],[.048,.07,.038]);
     for(let j=0;j<4;j++)add(arm,new THREE.CapsuleGeometry(.011,.06,4,8),leather,[(j-1.5)*.021,-.585,.025]);
     add(arm,new THREE.CapsuleGeometry(.014,.045,4,8),leather,[-side*.049,-.535,.045]).rotation.z=side*.45;
+    // Sewn cuff and natural elbow bend make sleeves read as tailored clothing.
+    add(arm,drape([[-.49,.108],[-.455,.11]],{depth:.85,fold:.002}),leather,[0,0,0]);
+    arm.rotation.x=-.08;arm.rotation.z=side*.06;
     arms[side<0?'left':'right']=arm;
   }
   const wand=new THREE.Group();add(wand,new THREE.CylinderGeometry(.006,.016,.65,12),new THREE.MeshStandardMaterial({color:0x342a20,roughness:.8}),[0,-.23,0]);

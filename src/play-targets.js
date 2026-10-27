@@ -1,4 +1,4 @@
-import {applySpell} from './world.js';
+import {applySpell,CAPS} from './world.js';
 /** Replenish only missing prerequisites so toddlers can see every spell's cause and effect. */
 export function preparePlayTarget(world,id,now=Date.now()) {
  const a=world.armor;
@@ -16,6 +16,6 @@ export function preparePlayTarget(world,id,now=Date.now()) {
   applySpell(world,'serpensortia',{now});applySpell(world,'protego',{now});applySpell(world,'reducto',{now});
  }
  // Free one slot when a collection is full; the new object can visibly arrive.
- for(const [spell,key] of [['accio','treasures'],['serpensortia','snakes'],['slugulas_eructo','slugs']])if(id===spell&&world[key].length>=10)world[key].shift();
+ for(const [spell,key] of [['accio','treasures'],['serpensortia','snakes'],['slugulas_eructo','slugs']])if(id===spell&&world[key].length>=CAPS[key])world[key].pop();
  return world;
 }

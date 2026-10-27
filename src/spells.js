@@ -24,7 +24,7 @@ export const SPELLS = [
     spelling: 'Accio',
     guide: 'AH-key-oh',
     katakana: 'アー・キー・オー',
-    effectSummary: '宝物が奥から手前の宝物置き場へ飛んでくる',
+    effectSummary: '宝箱が手前へ飛んできて、5段まで積み上がる',
     defaultColor: '#FFD426',
     defaultColorName: '黄色',
     colorSource: 'manual',

@@ -144,7 +144,7 @@ export class WandApp {
     try {
       const w = createInitialWorld();
       if (Array.isArray(saved.snakes)) w.snakes = saved.snakes.slice(0, 10);
-      if (Array.isArray(saved.treasures)) w.treasures = saved.treasures.slice(0, 10);
+      if (Array.isArray(saved.treasures)) w.treasures = saved.treasures.slice(0, 5);
       if (Array.isArray(saved.slugs)) w.slugs = saved.slugs.slice(0, 10);
       if (Array.isArray(saved.debris)) w.debris = saved.debris.slice(0, 40);
       if (Array.isArray(saved.droppedSwords)) w.droppedSwords = saved.droppedSwords.slice(0, 3);

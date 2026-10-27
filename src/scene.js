@@ -1,3 +1,4 @@
+import { createTreasureChest, createSnake, chestHome, CHEST_LEVELS } from './real-props.js';
 import { SpellFocus, SPELL_STORIES } from './spell-focus.js';
 /**
  * 3Dの魔法世界（要件書 5章）。
@@ -566,21 +567,9 @@ export class MagicScene {
     rim.castShadow = shadow;
     this.scene.add(rim);
 
-    const treasureGeos = [
-      new THREE.IcosahedronGeometry(0.2, 0),
-      new THREE.BoxGeometry(0.28, 0.21, 0.28),
-      new THREE.TorusGeometry(0.16, 0.065, 10, 18),
-      new THREE.OctahedronGeometry(0.19, 0),
-    ];
-    for (let i = 0; i < 10; i += 1) {
-      const mesh = new THREE.Mesh(treasureGeos[i % 4], goldMat);
-      const a = (i / 10) * Math.PI * 2;
-      const r = 0.3 + (i % 3) * 0.1;
-      mesh.position.set(-2.45 + Math.cos(a) * r, 0.72 + Math.floor(i / 5) * 0.26, 0.35 + Math.sin(a) * r * 0.8);
-      mesh.castShadow = shadow;
-      mesh.visible = false;
-      this.scene.add(mesh);
-      this.pools.treasures.push({ mesh, home: mesh.position.clone(), phase: Math.random() * Math.PI * 2 });
+    for(let i=0;i<CHEST_LEVELS;i++) {
+      const mesh=createTreasureChest(this.tex.wood);mesh.position.copy(chestHome(i));mesh.visible=false;
+      this.scene.add(mesh);this.pools.treasures.push({mesh,home:chestHome(i),phase:0});
     }
 
     // --- 壊せる岩（Reducto） ---
@@ -618,23 +607,9 @@ export class MagicScene {
     }
 
     // --- ヘビ（Serpensortia / Vipera Evanesca） ---
-    const bodyGeo = new THREE.SphereGeometry(0.095, 14, 10);
-    const headGeo = new THREE.SphereGeometry(0.11, 16, 12);
-    const snakeMat = new THREE.MeshStandardMaterial({ color: 0x484d32, roughness: 0.45, metalness: 0.2, envMapIntensity: 0.8 });
-    const headMat = new THREE.MeshStandardMaterial({ color: 0x666449, roughness: 0.38, metalness: 0.25, envMapIntensity: 1 });
-    for (let i = 0; i < 10; i += 1) {
-      const group = new THREE.Group();
-      const segs = [];
-      for (let s = 0; s < 16; s += 1) {
-        const seg = new THREE.Mesh(s === 0 ? headGeo : bodyGeo, s === 0 ? headMat : snakeMat);
-        seg.scale.set(1-s*.045,.62*(1-s*.04),1.2);
-        seg.castShadow = shadow;
-        group.add(seg);
-        segs.push(seg);
-      }
-      group.visible = false;
-      this.scene.add(group);
-      this.pools.snakes.push({ group, segs, phase: Math.random() * Math.PI * 2, home: new THREE.Vector3() });
+    for(let i=0;i<10;i++) {
+      const snake=createSnake();this.scene.add(snake.group);
+      this.pools.snakes.push({...snake,phase:Math.random()*Math.PI*2,home:new THREE.Vector3()});
     }
 
     // --- 桶とナメクジ（Slugulas Eructo） ---
@@ -900,7 +875,7 @@ export class MagicScene {
     if(subject==='person')return this.armor.position.clone();
     if(subject==='rock')return (this.rockMeshes.find(m=>m.visible)||this.rockMeshes[0]).position.clone();
     if(subject==='snake')return (this.pools.snakes.find(s=>s.group.visible)||this.pools.snakes[0]).home.clone();
-    if(subject==='treasure')return this.pools.treasures[0].home.clone();
+    if(subject==='treasure'){this.focusTreasureSlot=Math.min(4,this.world?.treasures.length||0);return this.pools.treasures[this.focusTreasureSlot].home.clone();}
     return new THREE.Vector3(0,0,2.4);
   }
   focusNodes() {
@@ -908,7 +883,7 @@ export class MagicScene {
     if(subject==='person')return [this.armor,...this.pools.swords.map(x=>x.mesh),...(id==='slugulas_eructo'?this.pools.slugs.map(x=>x.mesh):[])];
     if(subject==='rock')return [...this.rockMeshes,...this.pools.debris.map(x=>x.mesh)];
     if(subject==='snake')return [...this.pools.snakes.map(x=>x.group),...this.vanishGhosts.map(x=>x.mesh)];
-    if(subject==='treasure')return this.pools.treasures.map(x=>x.mesh);
+    if(subject==='treasure')return [this.pools.treasures[this.focusTreasureSlot||0].mesh];
     if(subject==='shield')return [this.shield,this.shieldEdge];
     if(subject==='world')return [this.armor,this.shield,this.shieldEdge,...this.rockMeshes,...Object.values(this.pools).flat().map(x=>x.mesh||x.group)];
     return [];
@@ -960,11 +935,11 @@ export class MagicScene {
 
     this.pools.treasures.forEach((item, i) => {
       if (!item.mesh.visible) return;
-      item.mesh.rotation.y = t * 0.55 + i;
-      item.mesh.rotation.x = Math.sin(t * 0.4 + i) * 0.2;
+      item.mesh.rotation.y = 0;
+      item.mesh.rotation.x = 0;
       const progress=Math.min(1, Math.max(0,(Date.now()-(item.bornAt||0))/1500));
       item.mesh.position.copy(new THREE.Vector3(-6.9,1.35,-6.3).lerp(item.home,progress));
-      item.mesh.position.y += Math.sin(progress*Math.PI)*2 + Math.sin(t*1.2+item.phase)*.045;
+      item.mesh.position.y += Math.sin(progress*Math.PI)*2;
     });
 
     const speed = this.world ? this.world.armor.speedFactor : 1;
@@ -972,11 +947,7 @@ export class MagicScene {
       if (!s.group.visible) return;
       s.group.position.copy(s.home);
       s.group.rotation.y = Math.sin(t * 1.0 * speed + s.phase) * 1.0;
-      s.segs.forEach((seg, k) => {
-        const wave = Math.sin(t * 4.2 * speed + s.phase - k * 0.28);
-        seg.position.set(wave * 0.13, 0.07 - k * 0.002, -k * 0.09);
-        seg.rotation.y = wave * 0.3;
-      });
+      s.update(t*speed+s.phase);
     });
 
     this.pools.slugs.forEach((s, i) => {

@@ -1,7 +1,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 // One visual sentence per spell. Scene state is authoritative; the focus never changes game state.
 export const SPELL_STORIES={
- accio:{subject:'treasure',label:'たからものが とんでくる',scale:2.8},
+ accio:{subject:'treasure',label:'たからばこが つみあがる',scale:1.6},
  stupefy:{subject:'person',label:'てきが たおれる',scale:1.12},
  reducto:{subject:'rock',label:'いわが くだける',scale:1.7},
  protego:{subject:'shield',label:'まもる かべが できる',scale:1.15},
@@ -9,10 +9,10 @@ export const SPELL_STORIES={
  episkey:{subject:'person',label:'いたいのが なおる',scale:1.12},
  expelliarmus:{subject:'person',label:'てきの つえが とぶ',scale:1.12},
  rictusempra:{subject:'person',label:'くすぐったくて わらう',scale:1.12},
- serpensortia:{subject:'snake',label:'へびが あらわれる',scale:2.3},
+ serpensortia:{subject:'snake',label:'へびが あらわれる',scale:1.5},
  slugulas_eructo:{subject:'person',label:'ナメクジが おちる',scale:1.12},
  impedimenta:{subject:'person',label:'うごきが ゆっくりに',scale:1.12},
- vipera_evanesca:{subject:'snake',label:'へびが きえる',scale:2.3},
+ vipera_evanesca:{subject:'snake',label:'へびが きえる',scale:1.5},
  finite_incantatem:{subject:'world',label:'まほうが とけて もとどおり',scale:1},
  everte_statum:{subject:'person',label:'てきが うしろへ とぶ',scale:1.12},
 };

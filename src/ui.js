@@ -19,7 +19,7 @@ const $ = (id) => document.getElementById(id);
 
 /** 子ども向けの絵。文字の代わりに数が分かるようにする。 */
 const TALLY_ICONS = [
-  { key: 'treasures', icon: '💎', label: 'たからもの' },
+  { key: 'treasures', icon: '🧰', label: 'たからばこ' },
   { key: 'snakes', icon: '🐍', label: 'ヘビ' },
   { key: 'slugs', icon: '🐌', label: 'ナメクジ' },
   { key: 'rocksLeft', icon: '🪨', label: 'いわ' },
@@ -725,7 +725,7 @@ $('limitations').innerHTML = `
   </ul>
   <h3>遊びの初期案（要件書7章の未指定部分）</h3>
   <ul>
-    <li>増える上限：たからもの ${CAPS.treasures}個 / ヘビ ${CAPS.snakes}匹 / ナメクジ ${CAPS.slugs}匹。壊せる岩は ${INITIAL_ROCK_COUNT}個。</li>
+    <li>増える上限：宝箱 ${CAPS.treasures}段 / ヘビ ${CAPS.snakes}匹 / ナメクジ ${CAPS.slugs}匹。壊せる岩は ${INITIAL_ROCK_COUNT}個。</li>
     <li>人に作用する8呪文の対象は、大広間に立つ<strong>デスイーターの仮面と黒いローブの敵</strong>です（子ども自身が杖を振る側なので、画面の中に分身を置いていません）。</li>
     <li>Everte Statum で小さないたみができ、Episkey の対象になります（表現は控えめ）。</li>
     <li>くすぐり・鈍足は有限時間で元に戻り、初期化でも解除されます。</li>

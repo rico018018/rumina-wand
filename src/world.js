@@ -8,8 +8,8 @@
  * 音声発動と手動発動は、どちらも applySpell を通ります（要件書 8章・第2段階）。
  */
 
-/** 増やせる対象の上限（初期案：10個・10匹） */
-export const CAPS = { snakes: 10, treasures: 10, slugs: 10 };
+/** 増やせる対象の上限（宝箱5段、動物10匹） */
+export const CAPS = { snakes: 10, treasures: 5, slugs: 10 };
 /** 壊せる岩の数（初期案） */
 export const INITIAL_ROCK_COUNT = 3;
 /** 岩1個が割れてできる破片の数（初期案） */
@@ -108,7 +108,7 @@ export function applySpell(world, spellId, options = {}) {
       }
       const treasure = { id: makeId('treasure'), kind: world.treasures.length % 3, bornAt: now };
       world.treasures.push(treasure);
-      result = ok('たからものが とんできた', [{ type: 'treasure_added', id: treasure.id }]);
+      result = ok('たからばこが つみあがった', [{ type: 'treasure_added', id: treasure.id }]);
       break;
     }
 
