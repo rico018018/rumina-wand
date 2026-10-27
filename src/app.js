@@ -11,7 +11,7 @@ import { enemyVariant } from './enemy-variants.js';
  */
 
 import { SPELLS, SPELL_BY_ID, PHASE1_SPELL_IDS } from './spells.js';
-import { matchSpell, DEFAULT_STRICTNESS, STRICTNESS_LEVELS } from './matcher.js';
+import { matchRecognition, DEFAULT_STRICTNESS, STRICTNESS_LEVELS } from './matcher.js';
 import { createInitialWorld, applySpell, tickWorld, resetWorld, worldSummary } from './world.js';
 import { createBrowserColorStore } from './colors.js';
 import { createBrowserDiagnostics } from './diagnostics.js';
@@ -37,7 +37,7 @@ export const DEFAULT_SETTINGS = {
   inputMode: 'push',          // 'continuous' | 'push'。既定はボタン入力（iOSの自動再開が未検証のため）
   castDelayMs: 1000,          // 発動待ち時間。要件の初期値は約1秒
   strictness: DEFAULT_STRICTNESS,
-  lang: 'en-US',
+  lang: 'ja-JP',
   volume: 0.7,
   pushWindowMs: DEFAULT_PUSH_WINDOW_MS,
   lowPower: false,
@@ -75,6 +75,11 @@ export class WandApp {
     this.audio = new AudioKit();
 
     this.settings = { ...DEFAULT_SETTINGS, ...loadJSON(SETTINGS_KEY, {}), enableAllSpells: true };
+    // One-time migration: existing default English/strict installations must receive the child setup too.
+    if (this.settings.recognitionVersion !== 2) {
+      this.settings.strictness = 'child'; this.settings.lang = 'ja-JP'; this.settings.recognitionVersion = 2;
+      saveJSON(SETTINGS_KEY, this.settings);
+    }
     this.castGate = new CastGate(); this.epoch = 0; this.timers = new Set();
     this.gesture = gestureFactory({ onStroke: now => this.onStroke(now), onState: message => { if (this.status) { if (!this.gesture.active) { this.castGate.reset(); if (this.status.childMode === 'armed') this.#setStatus({childMode:'idle',childSpellId:null,childMessage:'カメラを はじめてね'}); } this.#setStatus({ cameraMessage: message, cameraActive: this.gesture.active }); } } });
     // 保存されていた値が壊れていても安全な範囲に収める
@@ -304,23 +309,9 @@ export class WandApp {
       return;
     }
 
-    // 認識の代替候補を順に見る。最初に一致したものを採用する（曖昧なら失敗のまま）。
     const opts = { strictness: this.settings.strictness, extraCandidates: this.diag.extraCandidates };
-    let chosen = matchSpell(text, opts);
-    let chosenText = text;
-    if (!chosen.matched && Array.isArray(alternatives)) {
-      for (const alt of alternatives.slice(1)) {
-        const t = (alt?.transcript || '').trim();
-        if (!t) continue;
-        const r = matchSpell(t, opts);
-        if (r.matched) {
-          chosen = r;
-          chosenText = t;
-          this.diag.log({ type: 'matched_via_alternative', transcript: t, spellId: r.spellId });
-          break;
-        }
-      }
-    }
+    const {result: chosen, text: chosenText} = matchRecognition(text, alternatives, opts);
+    if (chosen.matched && chosenText !== text) this.diag.log({type:'matched_via_alternative',transcript:chosenText,spellId:chosen.spellId});
 
     this.diag.recordUtterance(chosen, chosenText);
 

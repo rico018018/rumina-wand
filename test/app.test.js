@@ -24,3 +24,10 @@ test('preview does not persist or replace the ordinary world',t=>{
  app.endPreview();assert.deepEqual(app.world,before);
 });
 test('input mode changes cancel an armed spell',t=>{const {app}=make(t);app.speech.onFinalResult({transcript:'Accio'});app.updateSettings({triggerMode:'voice'});assert.equal(app.castGate.pending,null);app.onStroke(performance.now());assert.equal(app.inFlight,null);});
+test('old installs migrate once to Japanese child recognition and keep later preferences',t=>{
+ const {app,storage}=make(t);assert.equal(app.settings.lang,'ja-JP');assert.equal(app.settings.strictness,'child');assert.equal(JSON.parse(storage.get(SETTINGS_KEY)).recognitionVersion,2);
+ app.updateSettings({lang:'en-US',strictness:'strict'});assert.equal(JSON.parse(storage.get(SETTINGS_KEY)).strictness,'strict');
+});
+test('child pronunciation arms the intended spell before a downstroke',t=>{
+ const {app}=make(t);app.speech.onFinalResult({transcript:'ぷよてご'});assert.equal(app.castGate.pending.spellId,'protego');
+});

@@ -4,18 +4,23 @@
  * 【方針（要件書 4章）】
  * - これは「音声を文字にした結果の文字列照合」です。発音の正しさを採点する機能ではありません。
  *   一致したことを「発音を正確に評価できた」とは称しません。
- * - 許可リストに載っている表記だけを一致とみなします。
+ * - strictは登録表記の一致。childは登録表記・短縮形を基に音の揺れも比較します。
  * - 「何でも一番近い呪文へ割り当てる」処理は実装しません。複数の呪文に一致した場合は失敗にします。
- * - 既定の厳しさは strict（正規化後の完全一致のみ）です。
+ * - 既定は child。日本語の音の揺れと限定した短縮形を許容し、僅差なら棄却します。
  */
 
 import { SPELLS } from './spells.js';
 
 export const STRICTNESS_LEVELS = {
+  child: {
+    label: 'こども向け（おすすめ）',
+    description: '日本語の音の抜け・言い換え・長い呪文の短縮形に対応。複数の呪文に近い場合は聞き直します。',
+    isDefault: true, maxDistanceShort: 0, maxDistanceLong: 0,
+  },
   strict: {
-    label: 'きびしい（既定）',
+    label: 'きびしい',
     description: '正規化後の完全一致だけを成功にする。1文字でも違えば失敗。',
-    isDefault: true,
+    isDefault: false,
     maxDistanceShort: 0,
     maxDistanceLong: 0,
   },
@@ -35,7 +40,7 @@ export const STRICTNESS_LEVELS = {
   },
 };
 
-export const DEFAULT_STRICTNESS = 'strict';
+export const DEFAULT_STRICTNESS = 'child';
 const LONG_CANDIDATE_MIN_LENGTH = 7;
 /** 文中から呪文を取り出すとき、候補の語数＋この数までの発話なら探す */
 const WINDOW_TOKEN_SLACK = 2;
@@ -136,7 +141,7 @@ export function buildCandidateIndex(extraCandidates = {}) {
  * 認識テキストを呪文へ照合する。
  *
  * @param {string} text 認識テキスト
- * @param {{strictness?: 'strict'|'normal'|'loose', extraCandidates?: Record<string,string[]>}} options
+ * @param {{strictness?: 'child'|'strict'|'normal'|'loose', extraCandidates?: Record<string,string[]>}} options
  * @returns {object} 成功: {matched:true, spellId, candidate, mode, distance, normalized}
  *                   失敗: {matched:false, reason:'empty'|'no_match'|'ambiguous', near, normalized}
  */
@@ -183,6 +188,8 @@ export function matchSpell(text, options = {}) {
     return { ...base, matched: false, reason: 'ambiguous', ambiguousSpellIds: windowSpellIds, near: [] };
   }
 
+  if (strictness === 'child') return matchChild(normalized, index, base);
+
   // 3) 近さの計算（診断表示用。成功にするかは厳しさ設定で決める）
   const scored = [];
   for (const cand of index) {
@@ -225,4 +232,54 @@ export function matchSpell(text, options = {}) {
   }
 
   return { ...base, matched: false, reason: 'no_match', near };
+}
+
+// Explicit play aliases; these are not pronunciation assessments or observed child recordings.
+export const CHILD_ALIASES = {
+  accio:['アクシオ','アチオ'], stupefy:['ステューピファイ','ステューペファイ','ステュピファイ','スチュピファイ'],
+  reducto:['レダクト'], protego:['プロテゴ'], rennervate:['レネルベート','レナベート'], episkey:['エピスキー'],
+  expelliarmus:['エクスペリアームス','エクスペリアムス','エクスペリ'], rictusempra:['リクタセンプラ','リクセンプラ'],
+  serpensortia:['サーペンソーティア','サーペン','セルペンソーティア'], slugulas_eructo:['スラグラス','スラギュラス'],
+  impedimenta:['インペディメンタ','インペリメンタ'], vipera_evanesca:['ビペラエバネスカ','ビペラ'],
+  finite_incantatem:['フィニートインカンターテム','フィニート','フィニーテ'], everte_statum:['エバーテスタタム','エベルテスタートゥム','エバーテ'],
+};
+export function childPhonetics(text) {
+  return normalizeUtterance(text).compact
+    .replace(/ヴァ/g,'バ').replace(/ヴィ/g,'ビ').replace(/ヴェ/g,'ベ').replace(/ヴォ/g,'ボ').replace(/ヴ/g,'ブ')
+    .replace(/ティ/g,'チ').replace(/ディ/g,'ジ').replace(/トゥ/g,'ツ').replace(/ドゥ/g,'ズ')
+    .replace(/ファ/g,'ハ').replace(/フィ/g,'ヒ').replace(/フェ/g,'ヘ').replace(/フォ/g,'ホ')
+    .replace(/チュ|シュ/g,'ス')
+    .replace(/[ァィゥェォャュョ]/g,c=>String.fromCharCode(c.charCodeAt(0)+1)).replace(/ッ/g,'');
+}
+function matchChild(normalized,index,base) {
+  const input=childPhonetics(normalized.compact);
+  const aliases=Object.entries(CHILD_ALIASES).flatMap(([spellId,values])=>values.map(display=>({spellId,display,origin:'child-alias',compact:normalizeUtterance(display).compact})));
+  const scores=new Map();
+  for(const c of [...index,...aliases]) {
+    const target=childPhonetics(c.compact),length=Math.max(input.length,target.length);
+    const exact=input===target;
+    // Short names need phonetic equality; never rescue unrelated 1–2 syllable speech.
+    const limit=Math.min(3,Math.floor(length*.28));
+    const d=boundedDistance(input,target,limit);
+    if(!exact && (input.length<4 || target.length<4 || d>limit))continue;
+    const score=d/length;
+    const old=scores.get(c.spellId);
+    if(!old||score<old.score)scores.set(c.spellId,{...c,distance:d,score});
+  }
+  const hits=[...scores.values()].sort((a,b)=>a.score-b.score);
+  const near=hits.slice(0,5);
+  if(!hits.length)return {...base,matched:false,reason:'no_match',near};
+  if(hits[1] && hits[1].score-hits[0].score<.09)return {...base,matched:false,reason:'ambiguous',ambiguousSpellIds:hits.filter(h=>h.score-hits[0].score<.09).map(h=>h.spellId),near};
+  const best=hits[0];return {...base,matched:true,spellId:best.spellId,candidate:best,mode:'child',distance:best.distance,score:best.score,near};
+}
+
+/** Prefer literal matches over fuzzy matches across recognition alternatives; reject conflicting equals. */
+export function matchRecognition(transcript,alternatives=[],options={}) {
+  const texts=[...new Set([transcript,...(alternatives||[]).slice(0,5).map(a=>a?.transcript)].filter(t=>typeof t==='string'&&t.trim()).map(t=>t.trim()))];
+  const results=texts.map(text=>({text,result:matchSpell(text,options)}));
+  const ranked=results.filter(x=>x.result.matched).map(x=>({...x,rank:['exact','window'].includes(x.result.mode)?0:(x.result.score??x.result.distance/Math.max(1,x.result.candidate.compact.length))+.05})).sort((a,b)=>a.rank-b.rank);
+  if(!ranked.length)return {text:transcript,result:results[0]?.result||matchSpell('',options)};
+  const best=ranked[0],conflicts=ranked.filter(x=>x.result.spellId!==best.result.spellId&&x.rank-best.rank<.09);
+  if(conflicts.length)return {text:transcript,result:{matched:false,reason:'ambiguous',near:[],ambiguousSpellIds:[...new Set([best.result.spellId,...conflicts.map(x=>x.result.spellId)])]}};
+  return {text:best.text,result:best.result};
 }

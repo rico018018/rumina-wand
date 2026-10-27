@@ -318,7 +318,7 @@ for (const [key, level] of Object.entries(STRICTNESS_LEVELS)) {
 strictnessSel.value = app.settings.strictness;
 const paintStrictnessNote = () => {
   $('strictnessNote').textContent = STRICTNESS_LEVELS[strictnessSel.value].description
-    + ' どの設定でも、似ていない語を勝手に成功扱いにはしません。';
+    + ' 判定を広げると誤発動も増える可能性があります。聞き取り結果は診断欄から追加登録できます。';
 };
 paintStrictnessNote();
 strictnessSel.addEventListener('change', () => {

@@ -15,14 +15,15 @@
  * 同じ呪文でも左右の向きを毎回変えるので、振るたびに少し違って見える。
  *
  * 全画面を白く飛ばさない、点滅させない、という要件は守る。
- * 光は手前の軌跡・対象・床の輪に限定し、立ち上がりと減衰はなだらかにする。
+ * 光は軌跡・対象・床・画面端に広げ、立ち上がりと減衰はなだらかにする。
  */
 
 import * as THREE from '../vendor/three.module.min.js';
+import { ImpactField } from './impact-field.js';
 import { glowSprite } from './textures.js';
 
 /** 粒の最大数。端末が重くならない範囲で、画面が賑やかに見える量。 */
-const MAX_PARTICLES = 1600;
+const MAX_PARTICLES = 2200;
 
 /**
  * 呪文ごとの「振り」。
@@ -112,6 +113,7 @@ export class SpellEffects {
     this.#buildTrail();
     this.#buildOrbs();
     this.#buildRing();
+    this.impactField = new ImpactField(scene);
 
     // 対象を照らす明かり。色が周りの石や金属に乗ることで「光った」と分かる。
     this.light = new THREE.PointLight(0xffffff, 0, 16, 2);
@@ -343,7 +345,7 @@ export class SpellEffects {
 
     const swingMs = options.immediate ? 0 : Math.min(180, cfg.swingMs);
     const flyMs = 300;
-    const burstMs = 1100;
+    const burstMs = 1800;
 
     this.active.push({
       spellId, cfg, color, color2, dir, strength,
@@ -489,6 +491,7 @@ export class SpellEffects {
   }
 
   #updateActive(nowMs, dt) {
+    this.impactField.clear();
     let lightI = 0;
     let nearI = 0;
     let lightColor = null;
@@ -508,7 +511,7 @@ export class SpellEffects {
         const t = el / fx.swingMs;
         const eased = t * t * (3 - 2 * t);
         const [sx, sy] = swingPath(fx.cfg.kind, eased, fx.dir);
-        const point = new THREE.Vector3((this.originX || 0) + sx * .4 * t, -.2 + t*.65, SWING_PLANE_Z);
+        const point = new THREE.Vector3((this.originX || 0) + sx * .65, .55 + sy*.7, SWING_PLANE_Z);
         this.#pushTrail(point, t === 0);
         trailOp = Math.max(trailOp, Math.min(1, t * 4) * 0.95 * fx.strength);
         this.trailMat.uniforms.uColor.value.copy(fx.color);
@@ -531,7 +534,7 @@ export class SpellEffects {
 
       // 振り終わりの位置＝魔法が飛び出す点
       const [ex, ey] = swingPath(fx.cfg.kind, 1, fx.dir);
-      const from = new THREE.Vector3(this.originX || 0, -.2, SWING_PLANE_Z);
+      const from = fx.swingMs === 0 ? new THREE.Vector3(this.originX || 0, -.2, SWING_PLANE_Z) : new THREE.Vector3((this.originX || 0)+ex*.65, .55+ey*.7, SWING_PLANE_Z);
 
       // --- 2) 飛翔 ---
       if (el < fx.swingMs + fx.flyMs) {
@@ -544,12 +547,12 @@ export class SpellEffects {
         this.#pushTrail(pos, t < .1); this.trailMat.uniforms.uColor.value.copy(fx.color);
         this.boltOrb.position.copy(pos);
         this.boltOrb.material.color.copy(fx.color);
-        this.boltOrb.scale.setScalar(1.0 + t * 0.7);
+        this.boltOrb.scale.setScalar(1.5 + t * 1.2);
         boltOp = Math.max(boltOp, 0.9 * fx.strength);
         this.light.position.copy(pos);
-        lightI = Math.max(lightI, 6.0 * fx.strength);
+        lightI = Math.max(lightI, 18.0 * fx.strength);
         lightColor = fx.color;
-        trailOp = Math.max(trailOp, (1 - t) * 0.7 * fx.strength);
+        trailOp = Math.max(trailOp, (1 - t*.45) * fx.strength);
         // 尾を引く
         this.#spawn(pos, {
           count: Math.max(2, Math.round((this.lowPower ? 110 : 240) * dt)),
@@ -564,10 +567,10 @@ export class SpellEffects {
       const bt = (el - fx.swingMs - fx.flyMs) / fx.burstMs;
       if (!fx.burstDone) {
         fx.burstDone = true;
-        const n = Math.round((this.lowPower ? 130 : 320) * fx.cfg.particles * fx.strength);
+        const n = Math.round((this.lowPower ? 180 : 540) * fx.cfg.particles * fx.strength);
         this.#spawn(fx.target, {
           count: n, color: fx.color, color2: fx.color2,
-          speed: 6.4 * fx.strength, size: 0.085, life: 1.4, gravity: -2.8, drag: 1.1, spread: 1,
+          speed: 8.0 * fx.strength, size: 0.13, life: 1.9, gravity: -2.8, drag: 1.1, spread: 1,
         });
         // 奥へ抜ける芯
         this.#spawn(fx.target, {
@@ -578,30 +581,31 @@ export class SpellEffects {
         // こちらへ飛んでくる火花。画面の前にいる子どもに向かって来るほど臨場感が出る。
         this.#spawn(fx.target, {
           count: Math.round(n * 0.3), color: fx.color, color2: fx.color2,
-          speed: 7.5 * fx.strength, size: 0.09, life: 1.0, gravity: -2.2, drag: 0.8,
+          speed: 7.5 * fx.strength, size: 0.14, life: 1.3, gravity: -2.2, drag: 0.8,
           dir: new THREE.Vector3(0, 0.3, 1).normalize(), cone: Math.PI / 2.4,
         });
         this.ring.position.set(fx.target.x, 0.03, fx.target.z);
         this.dome.position.copy(fx.target);
       }
 
+      if (fx.spellId) this.impactField.show(fx, bt);
       const env = Math.sin(Math.min(1, bt) * Math.PI);
       const decay = Math.max(0, 1 - bt);
       this.burstOrb.position.copy(fx.target);
       this.burstOrb.material.color.copy(fx.color);
-      this.burstOrb.scale.setScalar((2.0 + bt * 5.4) * fx.strength);
+      this.burstOrb.scale.setScalar((3.0 + bt * 7.0) * fx.strength);
       burstOp = Math.max(burstOp, decay * decay * 0.95 * fx.strength);
 
       this.ring.material.color.copy(fx.color2);
-      this.ring.scale.setScalar(0.6 + bt * 7.5 * fx.strength);
-      ringOp = Math.max(ringOp, decay * 0.23 * fx.strength);
+      this.ring.scale.setScalar(0.6 + bt * 11.0 * fx.strength);
+      ringOp = Math.max(ringOp, decay * 0.48 * fx.strength);
 
       this.dome.material.color.copy(fx.color);
       this.dome.scale.setScalar(0.5 + bt * 5.0 * fx.strength);
       domeOp = Math.max(domeOp, Math.max(0, 1 - bt * 1.7) * 0.12 * fx.strength);
 
       this.light.position.copy(fx.target);
-      lightI = Math.max(lightI, env * 11 * fx.strength);
+      lightI = Math.max(lightI, env * 30 * fx.strength);
       lightColor = fx.color;
       return true;
     });
@@ -648,7 +652,7 @@ export class SpellEffects {
       // 進行方向に直交する向きへ、先細りの幅を取る
       const side = new THREE.Vector3().crossVectors(tmp, up).normalize();
       const taper = 1 - i / pts.length;
-      const halfW = 0.34 * taper + 0.025;
+      const halfW = 0.46 * taper + 0.035;
       const i6 = i * 6;
       arr[i6] = a.x + side.x * halfW;
       arr[i6 + 1] = a.y + side.y * halfW;
@@ -665,6 +669,7 @@ export class SpellEffects {
   }
 
   cancel() {
+    this.impactField.clear();
     this.active=[]; this.chargeState=null; this.chargeUntil=0; this.trailLive=false;
     this.p.life.fill(0); this.p.size.fill(0);
     for(const name of ['gatherOrb','boltOrb','burstOrb','ring','dome']) if(this[name]?.material)this[name].material.opacity=0;
@@ -672,6 +677,7 @@ export class SpellEffects {
     this.particles.geometry.attributes.size.needsUpdate=true;
   }
   dispose() {
+    this.impactField.dispose();
     this.particles.geometry.dispose();
     this.particleMat.dispose();
     this.trail.geometry.dispose();
