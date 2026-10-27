@@ -33,3 +33,9 @@ test('large continuous snake moves without invalid vertices or detached body rin
  }
  assert.notDeepEqual(body.geometry.attributes.position.array,initial);
 });
+
+test('five-level tower stays inside the landscape camera frame',()=>{
+ const camera=new THREE.PerspectiveCamera(42,16/9,.1,80);camera.position.set(0,1.8,6.3);camera.lookAt(0,1.25,-.6);camera.updateMatrixWorld();
+ const chest=createTreasureChest({map:null,roughnessMap:null});chest.position.copy(chestHome(4));const b=new THREE.Box3().setFromObject(chest);
+ for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z]){const p=new THREE.Vector3(x,y,z).project(camera);assert.ok(Math.abs(p.x)<.95&&Math.abs(p.y)<.95);}
+});

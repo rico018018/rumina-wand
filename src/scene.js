@@ -557,13 +557,13 @@ export class MagicScene {
 
     // --- 宝物置き場（Accio の着地点） ---
     const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.76, 0.62, 18), stoneMat);
-    plinth.position.set(-2.45, 0.31, 0.35);
+    plinth.position.set(-2.45, 0.31, -2.4);
     plinth.castShadow = shadow;
     plinth.receiveShadow = shadow;
     this.scene.add(plinth);
     const rim = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.05, 10, 28), goldMat);
     rim.rotation.x = Math.PI / 2;
-    rim.position.set(-2.45, 0.63, 0.35);
+    rim.position.set(-2.45, 0.63, -2.4);
     rim.castShadow = shadow;
     this.scene.add(rim);
 
