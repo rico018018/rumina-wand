@@ -47,7 +47,7 @@ export class ImpactField {
     this.group.visible=true;this.group.position.copy(fx.target);
     const radius=kind==='nova'?1+p*9:kind==='shield'?1.3+p*1.7:.7+p*4.4;
     this.shell.scale.set(radius,kind==='rise'?radius*1.7:radius,radius);
-    this.uniforms.uTime.value=p*3;this.uniforms.uOpacity.value=opacity*.68;
+    this.uniforms.uTime.value=p*3;this.uniforms.uOpacity.value=opacity*(fx.readable?.30:.68);
     this.uniforms.uColor.value.copy(fx.color);this.uniforms.uAccent.value.copy(fx.color2);
     this.shell.visible=kind==='shield'||kind==='nova'||kind==='shock';
     for(let i=0;i<3;i++){

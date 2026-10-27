@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {matchSpell,matchRecognition,CHILD_ALIASES} from '../src/matcher.js';
+import {matchSpell as rawMatch,matchRecognition as rawRecognition,CHILD_ALIASES} from '../src/matcher.js';
 import {SPELLS} from '../src/spells.js';
 
 test('all 14 spells and all child aliases are uniquely recognized',()=>{
@@ -22,3 +22,6 @@ test('recognition prefers exact alternatives, but refuses contradictory spell al
  assert.equal(matchRecognition('Accio',[{transcript:'Protego'}]).result.reason,'ambiguous');
  assert.equal(matchRecognition('雑音',[{transcript:'ぷよてご'},{transcript:'えぴちき'}]).result.reason,'ambiguous');
 });
+
+function matchSpell(s,o={}){return rawMatch(s,{strictness:'child',...o});}
+function matchRecognition(s,a,o={}){return rawRecognition(s,a,{strictness:'child',...o});}

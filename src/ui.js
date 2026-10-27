@@ -9,7 +9,7 @@ import { ENEMY_VARIANTS, enemyVariant } from './enemy-variants.js';
 import { deviceState } from './device-state.js';
 import { WandApp } from './app.js';
 import { SPELLS, COLOR_SWATCHES, PHASE1_SPELL_IDS } from './spells.js';
-import { STRICTNESS_LEVELS } from './matcher.js';
+import { STRICTNESS_LEVELS, EASY_ALIASES } from './matcher.js';
 import { RECOGNITION_LANGS } from './speech.js';
 import { TESTER_TAGS } from './diagnostics.js';
 import { CAPS, INITIAL_ROCK_COUNT } from './world.js';
@@ -775,3 +775,6 @@ $('previewEnd').addEventListener('click',()=>{stopTour();app.endPreview();$('pre
 for(const id of ['btnResetWorld','btnStart','btnStop','castBtn','micToggle'])$(id).addEventListener('click',()=>{stopTour();if(app.previewSavedWorld)app.endPreview();},true);
 window.addEventListener('pagehide',()=>{stopTour();app.stopListening('pagehide');app.gesture.stop();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stopTour();app.stopListening('hidden');app.gesture.stop();}});
+
+const easyList=document.getElementById('easyWords');
+for(const spell of SPELLS){const row=document.createElement('li');row.textContent=`${spell.spelling}：${EASY_ALIASES[spell.id]}`;easyList.append(row);}

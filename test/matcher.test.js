@@ -137,8 +137,8 @@ test('2語呪文は空白のあり・なし両方を受け付ける', () => {
 });
 
 test('厳しさの一覧は3段階、既定値は厳しい', () => {
-  assert.deepEqual(Object.keys(STRICTNESS_LEVELS), ['child', 'strict', 'normal', 'loose']);
-  assert.equal(STRICTNESS_LEVELS.child.isDefault, true);
+  assert.deepEqual(Object.keys(STRICTNESS_LEVELS), ['easy', 'child', 'strict', 'normal', 'loose']);
+  assert.equal(STRICTNESS_LEVELS.easy.isDefault, true);
 });
 
 test('14呪文どうしが互いに誤一致しない（ゆるい設定でも）', () => {

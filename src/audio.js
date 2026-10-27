@@ -2,7 +2,7 @@
  * 効果音。音声ファイルは使わず WebAudio で合成する（無料運用・追加ダウンロードなし）。
  *
  * 【実物の杖の音との関係】
- * 購入品の杖が鳴らす音そのもの（ワーナーの効果音）は著作物なので複製できません。
+ * 実物の録音ではなく、呪文のイメージをもとに独自に合成します。
  * ここで鳴らすのは合成音です。実物に寄せられるのは「音の種類・長さ・鳴るタイミング」で、
  * それらは下の SPELL_SOUNDS を書き換えるだけで調整できるようにしてあります。
  *
@@ -176,6 +176,19 @@ export class AudioKit {
     return swingMs;
   }
 
+  /** Launch starts with the visual; the travel tone lasts until the reported impact time. */
+  playLaunch(spellId, timing) {
+    if (!this.ready) return 0;
+    const cfg=(SPELL_SOUNDS[spellId]||FALLBACK).swing;
+    const ms=Math.max(120,timing.impactMs);
+    this.playSwing(spellId,Math.min(ms,Math.max(120,timing.swingMs)));
+    const at=this.ctx.currentTime+Math.max(0,timing.swingMs)/1000;
+    const dur=Math.max(.12,(timing.impactMs-timing.swingMs)/1000);
+    this.#tone({freq:cfg.start*1.3,at,dur,type:'triangle',gain:.13,slideTo:cfg.end*1.5});
+    this.#noise({at,dur,gain:.14+cfg.noise*.16,from:cfg.start*3,to:cfg.end*4,q:1.5});
+    return ms;
+  }
+
   /** 着弾の音。呪文ごとに作りを変える。@returns 鳴る長さ（ミリ秒） */
   playImpact(spellId) {
     if (!this.ready) return 0;
@@ -238,6 +251,11 @@ export class AudioKit {
         n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.075, dur: cfg.dur, type: cfg.wave, gain: 0.34 }));
       }
     }
+    // A lower resonant layer and delayed harmonics give the visual bloom a spatial tail.
+    const root=n[0];
+    this.#tone({freq:Math.max(55,root/3),at,dur:.8,type:'sine',gain:.12,slideTo:Math.max(45,root/4)});
+    for(let i=0;i<3;i++)this.#tone({freq:n[i%n.length]*(i===2?2:1),at:at+.28+i*.22,dur:.65,type:'sine',gain:.085/(i+1),detune:(i-1)*6});
+    total=Math.max(total,(n.length-1)*.14+cfg.dur,1.4);
     return Math.round(total * 1000) + 120;
   }
 

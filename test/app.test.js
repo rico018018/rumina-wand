@@ -25,9 +25,16 @@ test('preview does not persist or replace the ordinary world',t=>{
 });
 test('input mode changes cancel an armed spell',t=>{const {app}=make(t);app.speech.onFinalResult({transcript:'Accio'});app.updateSettings({triggerMode:'voice'});assert.equal(app.castGate.pending,null);app.onStroke(performance.now());assert.equal(app.inFlight,null);});
 test('old installs migrate once to Japanese child recognition and keep later preferences',t=>{
- const {app,storage}=make(t);assert.equal(app.settings.lang,'ja-JP');assert.equal(app.settings.strictness,'child');assert.equal(JSON.parse(storage.get(SETTINGS_KEY)).recognitionVersion,2);
+ const {app,storage}=make(t);assert.equal(app.settings.lang,'ja-JP');assert.equal(app.settings.strictness,'easy');assert.equal(JSON.parse(storage.get(SETTINGS_KEY)).recognitionVersion,3);
  app.updateSettings({lang:'en-US',strictness:'strict'});assert.equal(JSON.parse(storage.get(SETTINGS_KEY)).strictness,'strict');
 });
 test('child pronunciation arms the intended spell before a downstroke',t=>{
  const {app}=make(t);app.speech.onFinalResult({transcript:'ぷよてご'});assert.equal(app.castGate.pending.spellId,'protego');
+});
+test('each spell has its own impact audio and remains busy while the visual finishes',t=>{
+ const {app}=make(t);const calls=[];app.audio.playImpact=id=>{calls.push(id);return 100;};
+ app.scene.castSpellEffect=()=>({swingMs:0,impactMs:900,totalMs:4600});
+ app.castSpell('episkey','gesture');t.mock.timers.tick(899);assert.equal(calls.length,0);
+ t.mock.timers.tick(1);assert.deepEqual(calls,['episkey']);assert.equal(app.world.armor.dented,false);
+ t.mock.timers.tick(1000);assert.ok(app.inFlight);t.mock.timers.tick(2700);assert.equal(app.inFlight,null);
 });

@@ -29,7 +29,7 @@
       <div class="wandbar" id="wandbar" data-mode="idle">
         <span class="wandbar__tip" id="wandTip"></span>
         
-        <span class="wandbar__label" id="wandLabel">したの ボタンを おしてね</span>
+        <span class="wandbar__label" id="wandLabel">はしの ボタンを おしてね</span>
         <svg class="wandbar__timer" id="wandTimer" viewBox="0 0 44 44" aria-hidden="true">
           <circle class="wandbar__timerTrack" cx="22" cy="22" r="18"></circle>
           <circle class="wandbar__timerArc" id="wandTimerArc" cx="22" cy="22" r="18"></circle>
@@ -86,7 +86,7 @@
 
     <!-- 1. 遊ぶ ------------------------------------------------------------- -->
     <section class="card">
-      <h2 class="card__title">あそぶ</h2>
+      <h2 class="card__title">あそぶ</h2><p class="note">対象が近づき、魔法の変化を見せてから元の場所へ戻ります。繰り返し遊べるよう、必要な岩・ヘビ・敵の状態は自動で用意します。</p>
       <div class="row row--buttons">
         <button type="button" class="btn btn--primary" id="btnStart">はじめる（きく）</button>
         <button type="button" class="btn" id="btnStop">とめる</button>
@@ -163,6 +163,7 @@
         <select id="strictness"></select>
       </div>
       <p class="note" id="strictnessNote"></p>
+      <details><summary>かんたんモードの短い合言葉（全14呪文）</summary><ul id="easyWords" class="note"></ul></details>
       <p class="note">こども向けでは「ぷよてご → プロテゴ」のような音の揺れにも対応します。長い呪文は「エクスペリ」「サーペン」「フィニート」でも遊べます。うまくいかない言い方は、診断欄の聞き取り結果をその呪文の候補に追加できます。</p>
 
       <div class="row">

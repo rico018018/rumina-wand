@@ -1,3 +1,5 @@
+import { preparePlayTarget } from './play-targets.js';
+import { SPELL_STORIES } from './spell-focus.js';
 import { enemyVariant } from './enemy-variants.js';
 /**
  * 全体の組み立て。音声認識・状態管理・描画・音を1本の発動パイプラインにつなぐ。
@@ -76,8 +78,8 @@ export class WandApp {
 
     this.settings = { ...DEFAULT_SETTINGS, ...loadJSON(SETTINGS_KEY, {}), enableAllSpells: true };
     // One-time migration: existing default English/strict installations must receive the child setup too.
-    if (this.settings.recognitionVersion !== 2) {
-      this.settings.strictness = 'child'; this.settings.lang = 'ja-JP'; this.settings.recognitionVersion = 2;
+    if (this.settings.recognitionVersion !== 3) {
+      this.settings.strictness = 'easy'; this.settings.lang = 'ja-JP'; this.settings.recognitionVersion = 3;
       saveJSON(SETTINGS_KEY, this.settings);
     }
     this.castGate = new CastGate(); this.epoch = 0; this.timers = new Set();
@@ -119,7 +121,7 @@ export class WandApp {
       listening: false,
       suppressedUntil: 0,
       interim: '',
-      childMessage: 'したの ボタンを おしてね',
+      childMessage: 'はしの ボタンを おしてね',
       childMode: 'idle',          // idle | listening | waiting | casting | failed | notarget
       childSpellId: null,
       parentNote: '',
@@ -266,7 +268,7 @@ export class WandApp {
   stopListening(reason = 'user') {
     this.cancelCast();
     this.speech.stop(reason);
-    this.#setStatus({ listening: false, childMode: 'idle', childMessage: 'したの ボタンを おしてね', interim: '' });
+    this.#setStatus({ listening: false, childMode: 'idle', childMessage: 'はしの ボタンを おしてね', interim: '' });
   }
 
   #onSpeechState(state, info) {
@@ -382,6 +384,9 @@ export class WandApp {
       return false;
     }
 
+    preparePlayTarget(this.world,spellId);
+    this.scene.setWorld(this.world);
+    this.#emitWorld();
     this.lastCastAt.set(spellId, now);
     this.inFlight = { spellId, startedAt: now, source };
 
@@ -419,8 +424,9 @@ export class WandApp {
       // ① 登録色の光。まず手前で杖を振った軌跡が走り、そこから対象へ飛ぶ。
       //    （子どもは画面の前で実際に杖を振っているので、画面の魔法もその動きに重なるようにする）
       const timing = this.scene.castSpellEffect(spellId, color, { strength: 1.65, immediate: source === 'gesture' });
-      this.audio.playSwing(spellId, timing.swingMs);
-      this.#setStatus({ childMode: 'casting', childSpellId: spellId, childMessage: spell.spelling });
+      this.audio.playLaunch(spellId, timing);
+      this.speech.suppress(timing.totalMs + SUPPRESS_MARGIN_MS);
+      this.#setStatus({ childMode: 'casting', childSpellId: spellId, childMessage: SPELL_STORIES[spellId]?.label || spell.spelling });
 
       // ② 光が対象に届いた瞬間に、対応する演出（＝状態変更）
       this.schedule(() => {
@@ -432,16 +438,9 @@ export class WandApp {
         this.#saveWorld();
         this.#emitWorld();
 
-        let soundMs;
-        if (outcome.status === 'applied') {
-          soundMs = this.audio.playImpact(spellId);
-        } else if (outcome.status === 'at_cap') {
-          soundMs = this.audio.playAtCap();
-        } else {
-          // 正しく唱えられたが対象がない。失敗ではないので、穏やかに示す。
-          soundMs = this.audio.playNoTarget();
-          this.scene.gentle(color, spellId);
-        }
+        // Every cast gets its own impact sound, even when the target has already changed.
+        const soundMs = this.audio.playImpact(spellId);
+        if (outcome.status !== 'applied' && outcome.status !== 'at_cap') this.scene.gentle(color, spellId);
 
         this.diag.recordCast({ spellId, source, status: outcome.status, message: outcome.message, color });
 
@@ -461,7 +460,7 @@ export class WandApp {
           } else {
             this.#setStatus({ childMode: 'idle', childSpellId: null });
           }
-        }, Math.max(400, soundMs));
+        }, Math.max(400, soundMs, timing.totalMs-timing.impactMs));
       }, timing.impactMs);
     };
 

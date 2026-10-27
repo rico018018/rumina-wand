@@ -12,10 +12,11 @@
 import { SPELLS } from './spells.js';
 
 export const STRICTNESS_LEVELS = {
+  easy: {label:'かんたん（おすすめ）',description:'短い合言葉でも発動。長い呪文は最大56%の文字の違いを許容します。誤発動が気になる場合はこども向けに戻せます。',isDefault:true,maxDistanceShort:0,maxDistanceLong:0},
   child: {
-    label: 'こども向け（おすすめ）',
+    label: 'こども向け',
     description: '日本語の音の抜け・言い換え・長い呪文の短縮形に対応。複数の呪文に近い場合は聞き直します。',
-    isDefault: true, maxDistanceShort: 0, maxDistanceLong: 0,
+    isDefault: false, maxDistanceShort: 0, maxDistanceLong: 0,
   },
   strict: {
     label: 'きびしい',
@@ -40,7 +41,7 @@ export const STRICTNESS_LEVELS = {
   },
 };
 
-export const DEFAULT_STRICTNESS = 'child';
+export const DEFAULT_STRICTNESS = 'easy';
 const LONG_CANDIDATE_MIN_LENGTH = 7;
 /** 文中から呪文を取り出すとき、候補の語数＋この数までの発話なら探す */
 const WINDOW_TOKEN_SLACK = 2;
@@ -188,7 +189,7 @@ export function matchSpell(text, options = {}) {
     return { ...base, matched: false, reason: 'ambiguous', ambiguousSpellIds: windowSpellIds, near: [] };
   }
 
-  if (strictness === 'child') return matchChild(normalized, index, base);
+  if (strictness === 'child' || strictness === 'easy') return matchChild(normalized, index, base);
 
   // 3) 近さの計算（診断表示用。成功にするかは厳しさ設定で決める）
   const scored = [];
@@ -234,6 +235,9 @@ export function matchSpell(text, options = {}) {
   return { ...base, matched: false, reason: 'no_match', near };
 }
 
+export const EASY_ALIASES={accio:'アキ',stupefy:'スチュ',reducto:'レダ',protego:'プロ',rennervate:'レナ',episkey:'エピ',expelliarmus:'エクス',rictusempra:'リク',serpensortia:'サペ',slugulas_eructo:'スラ',impedimenta:'インペ',vipera_evanesca:'ビペ',finite_incantatem:'フィニ',everte_statum:'エバ'};
+
+
 // Explicit play aliases; these are not pronunciation assessments or observed child recordings.
 export const CHILD_ALIASES = {
   accio:['アクシオ','アチオ'], stupefy:['ステューピファイ','ステューペファイ','ステュピファイ','スチュピファイ'],
@@ -253,15 +257,17 @@ export function childPhonetics(text) {
 }
 function matchChild(normalized,index,base) {
   const input=childPhonetics(normalized.compact);
+  const easy=base.strictness==='easy';
   const aliases=Object.entries(CHILD_ALIASES).flatMap(([spellId,values])=>values.map(display=>({spellId,display,origin:'child-alias',compact:normalizeUtterance(display).compact})));
+  if(easy) for(const [spellId,display] of Object.entries(EASY_ALIASES))aliases.push({spellId,display,compact:normalizeUtterance(display).compact,origin:'easy-alias'});
   const scores=new Map();
   for(const c of [...index,...aliases]) {
     const target=childPhonetics(c.compact),length=Math.max(input.length,target.length);
     const exact=input===target;
     // Short names need phonetic equality; never rescue unrelated 1–2 syllable speech.
-    const limit=Math.min(3,Math.floor(length*.28));
+    const limit=Math.min(easy?6:3,Math.floor(length*(easy?.56:.28)));
     const d=boundedDistance(input,target,limit);
-    if(!exact && (input.length<4 || target.length<4 || d>limit))continue;
+    if(!exact && (input.length<(easy?3:4) || target.length<4 || d>limit))continue;
     const score=d/length;
     const old=scores.get(c.spellId);
     if(!old||score<old.score)scores.set(c.spellId,{...c,distance:d,score});
@@ -269,8 +275,9 @@ function matchChild(normalized,index,base) {
   const hits=[...scores.values()].sort((a,b)=>a.score-b.score);
   const near=hits.slice(0,5);
   if(!hits.length)return {...base,matched:false,reason:'no_match',near};
-  if(hits[1] && hits[1].score-hits[0].score<.09)return {...base,matched:false,reason:'ambiguous',ambiguousSpellIds:hits.filter(h=>h.score-hits[0].score<.09).map(h=>h.spellId),near};
-  const best=hits[0];return {...base,matched:true,spellId:best.spellId,candidate:best,mode:'child',distance:best.distance,score:best.score,near};
+  const margin=easy?.035:.09;
+  if(hits[1] && hits[1].score-hits[0].score<margin)return {...base,matched:false,reason:'ambiguous',ambiguousSpellIds:hits.filter(h=>h.score-hits[0].score<margin).map(h=>h.spellId),near};
+  const best=hits[0];return {...base,matched:true,spellId:best.spellId,candidate:best,mode:easy?'easy':'child',distance:best.distance,score:best.score,near};
 }
 
 /** Prefer literal matches over fuzzy matches across recognition alternatives; reject conflicting equals. */

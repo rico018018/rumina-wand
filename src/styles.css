@@ -559,3 +559,23 @@ body.panel-open .device-dock {z-index:8;}
 .wandbar__tip {width:13px;height:13px;box-shadow:0 0 15px var(--tip);}
 .castbtn {transform:scale(.65);}
 .stage__frame::after {box-shadow:inset 0 0 110px #0003;}
+
+/* Landscape TV: keep the middle of the stage completely free of controls. */
+@media (orientation: landscape) {
+  .hud__bottom {display:contents;}
+  .hud__bottom .castbtn {position:absolute;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));width:150px;height:48px;min-height:44px;aspect-ratio:auto;border-radius:7px;transform:none;display:flex;gap:8px;justify-content:center;}
+  .castbtn__ring {display:none;}
+  .castbtn__icon {position:static;font-size:20px;}
+  .castbtn__text {position:static;font-size:13px;white-space:nowrap;}
+  .hud__bottom .wandbar {position:absolute;left:max(14px,env(safe-area-inset-left));bottom:112px;max-width:240px;min-height:32px;padding:6px 10px;gap:7px;}
+  .wandbar__label {font-size:13px;white-space:normal;}
+  .wandbar__timer {width:23px;}
+  .device-dock {left:max(14px,env(safe-area-inset-left));top:auto;bottom:max(14px,env(safe-area-inset-bottom));max-width:280px;}
+  .device-button {min-height:44px;padding:6px 9px;gap:6px;}
+  .device-name {font-size:11px;}.device-name strong {font-size:11px;display:inline;}
+  .device-button svg {width:17px;height:17px;}.device-action {font-size:9px;}
+  .device-hint {font-size:10px;max-width:260px;padding:3px 6px;}
+  .tally {align-self:flex-end;max-width:35%;margin-right:90px;gap:4px;}
+  .tally__group {font-size:12px;}
+  body.panel-open .device-dock,body.panel-open .hud__bottom .castbtn,body.panel-open .hud__bottom .wandbar {visibility:hidden;}
+}

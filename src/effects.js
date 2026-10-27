@@ -344,11 +344,11 @@ export class SpellEffects {
     const dir = 1;
 
     const swingMs = options.immediate ? 0 : Math.min(180, cfg.swingMs);
-    const flyMs = 300;
+    const flyMs = options.flyMs ?? 300;
     const burstMs = 1800;
 
     this.active.push({
-      spellId, cfg, color, color2, dir, strength,
+      spellId, cfg, color, color2, dir, strength, readable: Boolean(options.readable),
       start: performance.now(),
       swingMs, flyMs, burstMs,
       target: target.clone(),
@@ -594,7 +594,7 @@ export class SpellEffects {
       this.burstOrb.position.copy(fx.target);
       this.burstOrb.material.color.copy(fx.color);
       this.burstOrb.scale.setScalar((3.0 + bt * 7.0) * fx.strength);
-      burstOp = Math.max(burstOp, decay * decay * 0.95 * fx.strength);
+      burstOp = Math.max(burstOp, decay * decay * (fx.readable ? .13 : .95) * fx.strength);
 
       this.ring.material.color.copy(fx.color2);
       this.ring.scale.setScalar(0.6 + bt * 11.0 * fx.strength);
@@ -602,7 +602,7 @@ export class SpellEffects {
 
       this.dome.material.color.copy(fx.color);
       this.dome.scale.setScalar(0.5 + bt * 5.0 * fx.strength);
-      domeOp = Math.max(domeOp, Math.max(0, 1 - bt * 1.7) * 0.12 * fx.strength);
+      domeOp = Math.max(domeOp, Math.max(0, 1 - bt * 1.7) * (fx.readable ? .025 : .12) * fx.strength);
 
       this.light.position.copy(fx.target);
       lightI = Math.max(lightI, env * 30 * fx.strength);

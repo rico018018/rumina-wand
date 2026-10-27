@@ -1,3 +1,4 @@
+import { SpellFocus, SPELL_STORIES } from './spell-focus.js';
 /**
  * 3Dの魔法世界（要件書 5章）。
  *
@@ -163,6 +164,8 @@ export class MagicScene {
     this.world = null;
     this.renderError = null;
     this.collapse = 0;
+    this.focus = new SpellFocus();
+    this.vanishGhosts = [];
     this.patrolPhase = 0;
 
     this.renderer = new THREE.WebGLRenderer({
@@ -822,6 +825,14 @@ export class MagicScene {
   }
 
   setWorld(world) {
+    this.focus.restore();
+    if(this.focus.active?.id==='vipera_evanesca')this.pools.snakes.forEach((s,i)=>{
+      if(s.group.visible && i>=world.snakes.length){
+        const mesh=s.group.clone(true);mesh.position.copy(s.home);mesh.visible=true;
+        mesh.traverse(o=>{if(o.material){o.material=o.material.clone();o.material.transparent=true;}});
+        this.scene.add(mesh);this.vanishGhosts.push({mesh,born:performance.now()});
+      }
+    });
     this.world = world;
 
     this.pools.treasures.forEach((t, i) => { t.mesh.visible = i < world.treasures.length; t.bornAt=world.treasures[i]?.bornAt; });
@@ -873,10 +884,37 @@ export class MagicScene {
 
   /** @returns {{swingMs:number, impactMs:number, totalMs:number}} */
   castSpellEffect(spellId, hexColor, options) {
-    return this.effects.cast(spellId, hexColor, this.targetFor(spellId), options);
+    this.focus.cancel();
+    this.clearVanishGhosts();
+    if(spellId==='rennervate')this.collapse=1;
+    if(['stupefy','everte_statum','rictusempra','impedimenta','expelliarmus','slugulas_eructo','episkey'].includes(spellId))this.collapse=0;
+    const anchor=this.focusAnchor(spellId);
+    const timing=this.focus.start(spellId,anchor);
+    const target=SPELL_STORIES[spellId]?.subject==='world'?this.targetFor(spellId):this.focus.target();
+    this.effects.cast(spellId,hexColor,target,{...options,immediate:true,flyMs:timing.impactMs,readable:true});
+    return {...timing,swingMs:0};
   }
 
-  cancelEffects() { this.effects.cancel(); }
+  focusAnchor(id) {
+    const subject=SPELL_STORIES[id]?.subject;
+    if(subject==='person')return this.armor.position.clone();
+    if(subject==='rock')return (this.rockMeshes.find(m=>m.visible)||this.rockMeshes[0]).position.clone();
+    if(subject==='snake')return (this.pools.snakes.find(s=>s.group.visible)||this.pools.snakes[0]).home.clone();
+    if(subject==='treasure')return this.pools.treasures[0].home.clone();
+    return new THREE.Vector3(0,0,2.4);
+  }
+  focusNodes() {
+    const id=this.focus.active?.id,subject=SPELL_STORIES[id]?.subject;
+    if(subject==='person')return [this.armor,...this.pools.swords.map(x=>x.mesh),...(id==='slugulas_eructo'?this.pools.slugs.map(x=>x.mesh):[])];
+    if(subject==='rock')return [...this.rockMeshes,...this.pools.debris.map(x=>x.mesh)];
+    if(subject==='snake')return [...this.pools.snakes.map(x=>x.group),...this.vanishGhosts.map(x=>x.mesh)];
+    if(subject==='treasure')return this.pools.treasures.map(x=>x.mesh);
+    if(subject==='shield')return [this.shield,this.shieldEdge];
+    if(subject==='world')return [this.armor,this.shield,this.shieldEdge,...this.rockMeshes,...Object.values(this.pools).flat().map(x=>x.mesh||x.group)];
+    return [];
+  }
+  clearVanishGhosts() {for(const g of this.vanishGhosts){g.mesh.removeFromParent();g.mesh.traverse(o=>o.material?.dispose());}this.vanishGhosts=[];}
+  cancelEffects() { this.focus.cancel(); this.clearVanishGhosts(); this.effects.cancel(); }
   setOrigin(x) { this.effects.originX = x; }
   charge(ms) { this.effects.charge(ms); }
   fizzle() { this.effects.fizzle(); }
@@ -886,6 +924,7 @@ export class MagicScene {
   // ---------------------------------------------------------------- 毎フレーム
 
   render(nowMs = performance.now()) {
+    this.focus.restore();
     const t = nowMs / 1000;
     const dt = Math.min(0.05, this.clock.getDelta());
 
@@ -965,6 +1004,13 @@ export class MagicScene {
       for(let i=0;i<p.count;i++){const y=base[i*3+1];const weight=Math.max(0,1-y/1.4);p.setZ(i,base[i*3+2]+Math.sin(t*1.1+y*2+base[i*3]*3)*.012*weight);}
       p.needsUpdate=true;
     }
+    this.vanishGhosts=this.vanishGhosts.filter(g=>{
+      const k=Math.max(0,1-(nowMs-g.born)/800);
+      if(!k){g.mesh.removeFromParent();g.mesh.traverse(o=>o.material?.dispose());return false;}
+      g.mesh.scale.setScalar(k);g.mesh.position.y+=dt*.3;
+      g.mesh.traverse(o=>{if(o.material)o.material.opacity=k;});return true;
+    });
+    this.focus.update(nowMs,this.focusNodes());
     this.effects.update(nowMs, dt);
     this.cinema.update(this.armor,this.effects,this.collapse);
 
@@ -987,12 +1033,12 @@ export class MagicScene {
     if (ar.standing) this.patrolPhase += dt * 0.55 * ar.speedFactor;
     const walk = Math.sin(this.patrolPhase);
     const step = Math.sin(this.patrolPhase * 4);
-    const rattle = ar.tickling ? Math.sin(t * 12) * 0.09 : 0;
+    const rattle = ar.tickling ? Math.sin(t * 12) * 0.16 : 0;
 
     this.armor.position.x = (1 - c) * walk * PATROL_X + rattle * 1.8;
     this.armor.position.z += (ARMOR_Z + ar.offsetZ - this.armor.position.z) * Math.min(1, dt * 5);
     this.armor.position.y = -c * 0.16 + (1 - c) * Math.abs(step) * 0.009;
-    this.armor.rotation.x = -c * (Math.PI / 2.25);
+    this.armor.rotation.x = -c * (Math.PI / 2.25) + (ar.tickling ? .16 : (ar.dented && ar.standing ? .14 : 0));
     this.armor.rotation.y = (1 - c) * walk * 0.22;
     this.armor.rotation.z = (1 - c) * (step * 0.012 + rattle);
 
@@ -1022,6 +1068,8 @@ export class MagicScene {
   }
 
   dispose() {
+    this.focus.cancel();
+    this.clearVanishGhosts();
     disposeDarkWizard(this.armor);
     this.cinema?.dispose();
     if (this.envRT) this.envRT.dispose();
