@@ -549,3 +549,13 @@ select {max-width:100%;background:#161f2c;color:#eee3ce;border:1px solid #697177
 .panel {z-index:20;}
 body.panel-open .device-dock {z-index:8;}
 @media(max-width:600px) { .device-dock {left:10px;top:max(10px,env(safe-area-inset-top));max-width:calc(100% - 75px);} .device-dock__buttons {gap:5px;} .device-button {padding:8px;gap:6px;min-height:52px;} .device-button svg {width:17px;} .device-name {font-size:11px;} .device-name strong {display:block;margin-left:0;font-size:10px;} .device-led {display:none;} .device-hint {font-size:10px;max-width:270px;} }
+
+/* Film plate revision: quiet controls leave the duelling space dominant. */
+:root {--face-child:"Hiragino Sans","Yu Gothic",system-ui,sans-serif;}
+.tally {filter:grayscale(1);opacity:.4;}
+.tally__icon {font-size:clamp(14px,1.8vmin,22px);}
+.wandbar {min-height:46px;letter-spacing:.04em;background:#0b1013a6;border-color:#c7c0aa33;}
+.wandbar__label {font-weight:500;font-size:clamp(16px,2.4vmin,28px);}
+.wandbar__tip {width:13px;height:13px;box-shadow:0 0 15px var(--tip);}
+.castbtn {transform:scale(.65);}
+.stage__frame::after {box-shadow:inset 0 0 110px #0003;}

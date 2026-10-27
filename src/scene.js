@@ -15,6 +15,7 @@
  */
 
 import * as THREE from '../vendor/three.module.min.js';
+import { CinemaPlate } from './cinema.js';
 import { floorMaps, wallMaps, steelMaps, rockMaps, woodMaps, starSprite, glowSprite } from './textures.js';
 import { SpellEffects } from './effects.js';
 import { applyPhotographicStone, masonryUV } from './photo-materials.js';
@@ -193,13 +194,17 @@ export class MagicScene {
     };
 
     this.#buildLights();
+    const lightDecor=this.scene.children.filter(o=>o.isMesh||o.isSprite);
+    const beforeHall=new Set(this.scene.children);
     this.#buildHall();
+    const fallbackHall=[...lightDecor,...this.scene.children.filter(o=>!beforeHall.has(o))];
     this.#buildTreasury();
     this.#buildProps();
     this.#buildArmor();
     this.#buildDust();
 
     this.effects = new SpellEffects(this.scene, this.camera, { lowPower });
+    this.cinema = new CinemaPlate(this.scene, fallbackHall);
     this.resize();
   }
 
@@ -208,11 +213,11 @@ export class MagicScene {
   #buildLights() {
     // ライトは数を絞る。材質の計算はライトの数に比例して重くなるため、
     // 半球光1つで全体の地明かりをまかない、個別の点光源は最小限にする。
-    this.scene.add(new THREE.HemisphereLight(0xa9b7c3, 0x34302a, .85));
+    this.scene.add(new THREE.HemisphereLight(0xb5c2c9, 0x4b3825, .6));
 
     // 月あかり。これが影を落とす。
     const moon = new THREE.DirectionalLight(0xd4dfe5, 2.8);
-    moon.position.set(-5.5, 11, 4.5);
+    moon.position.set(4, 8, -5);
     moon.target.position.set(0, 0.6, -1);
     if (!this.lowPower) {
       moon.castShadow = true;
@@ -232,8 +237,8 @@ export class MagicScene {
     this.moon = moon;
 
     // 対象（よろい）を浮かび上がらせる明かり
-    const subject = new THREE.SpotLight(0xfff0d8, 48, 20, Math.PI / 5.0, 0.55, 1.5);
-    subject.position.set(1.1, 6.4, 3.0);
+    const subject = new THREE.SpotLight(0xffddb0, 40, 20, Math.PI / 5.0, 0.55, 1.5);
+    subject.position.set(-4, 4.5, 2.0);
     subject.target.position.set(0, 1.0, ARMOR_Z);
     this.scene.add(subject);
     this.scene.add(subject.target);
@@ -800,6 +805,7 @@ export class MagicScene {
       this.camera.fov = BASE_FOV_DEG;
     }
     this.camera.updateProjectionMatrix();
+    this.cinema?.resize(aspect);
   }
 
   setLowPower(lowPower) {
@@ -955,6 +961,7 @@ export class MagicScene {
       p.needsUpdate=true;
     }
     this.effects.update(nowMs, dt);
+    this.cinema.update(this.armor,this.effects,this.collapse);
 
     try {
       this.renderer.render(this.scene, this.camera);
@@ -979,15 +986,15 @@ export class MagicScene {
 
     this.armor.position.x = (1 - c) * walk * PATROL_X + rattle * 1.8;
     this.armor.position.z += (ARMOR_Z + ar.offsetZ - this.armor.position.z) * Math.min(1, dt * 5);
-    this.armor.position.y = -c * 0.16 + (1 - c) * Math.abs(step) * 0.028;
+    this.armor.position.y = -c * 0.16 + (1 - c) * Math.abs(step) * 0.009;
     this.armor.rotation.x = -c * (Math.PI / 2.25);
     this.armor.rotation.y = (1 - c) * walk * 0.22;
-    this.armor.rotation.z = (1 - c) * (step * 0.03 + rattle);
+    this.armor.rotation.z = (1 - c) * (step * 0.012 + rattle);
 
     // 歩幅
     this.armorLegs.forEach((leg, i) => {
       const s = Math.sin(this.patrolPhase * 4 + (i === 0 ? 0 : Math.PI));
-      leg.rotation.x = (1 - c) * s * 0.34 - c * 0.5;
+      leg.rotation.x = (1 - c) * s * 0.18 - c * 0.5;
       leg.position.z = (1 - c) * s * 0.07;
     });
 
@@ -1010,6 +1017,7 @@ export class MagicScene {
   }
 
   dispose() {
+    this.cinema?.dispose();
     if (this.envRT) this.envRT.dispose();
     this.effects.dispose();
     this.renderer.dispose();

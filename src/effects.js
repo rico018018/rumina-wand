@@ -213,7 +213,7 @@ export class SpellEffects {
         void main() {
           // 帯の中心を明るく、縁をぼかす。これで「板」ではなく「光の筋」に見える。
           float edge = 1.0 - abs(vSide);
-          float core = pow(edge, 0.6);
+          float core = pow(edge, 1.8);
           float a = vAlpha * uOpacity * core;
           if (a < 0.004) discard;
           vec3 c = mix(uColor, vec3(1.0), pow(edge, 4.0) * 0.75);
@@ -567,7 +567,7 @@ export class SpellEffects {
         const n = Math.round((this.lowPower ? 130 : 320) * fx.cfg.particles * fx.strength);
         this.#spawn(fx.target, {
           count: n, color: fx.color, color2: fx.color2,
-          speed: 6.4 * fx.strength, size: 0.2, life: 1.4, gravity: -2.8, drag: 1.1, spread: 1,
+          speed: 6.4 * fx.strength, size: 0.085, life: 1.4, gravity: -2.8, drag: 1.1, spread: 1,
         });
         // 奥へ抜ける芯
         this.#spawn(fx.target, {
@@ -578,7 +578,7 @@ export class SpellEffects {
         // こちらへ飛んでくる火花。画面の前にいる子どもに向かって来るほど臨場感が出る。
         this.#spawn(fx.target, {
           count: Math.round(n * 0.3), color: fx.color, color2: fx.color2,
-          speed: 7.5 * fx.strength, size: 0.22, life: 1.0, gravity: -2.2, drag: 0.8,
+          speed: 7.5 * fx.strength, size: 0.09, life: 1.0, gravity: -2.2, drag: 0.8,
           dir: new THREE.Vector3(0, 0.3, 1).normalize(), cone: Math.PI / 2.4,
         });
         this.ring.position.set(fx.target.x, 0.03, fx.target.z);
@@ -594,11 +594,11 @@ export class SpellEffects {
 
       this.ring.material.color.copy(fx.color2);
       this.ring.scale.setScalar(0.6 + bt * 7.5 * fx.strength);
-      ringOp = Math.max(ringOp, decay * 0.85 * fx.strength);
+      ringOp = Math.max(ringOp, decay * 0.23 * fx.strength);
 
       this.dome.material.color.copy(fx.color);
       this.dome.scale.setScalar(0.5 + bt * 5.0 * fx.strength);
-      domeOp = Math.max(domeOp, Math.max(0, 1 - bt * 1.7) * 0.42 * fx.strength);
+      domeOp = Math.max(domeOp, Math.max(0, 1 - bt * 1.7) * 0.12 * fx.strength);
 
       this.light.position.copy(fx.target);
       lightI = Math.max(lightI, env * 11 * fx.strength);
