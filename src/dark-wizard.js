@@ -14,7 +14,7 @@ function fabric() {
 }
 
 /** Ring profile tailoring: narrow waist, weight-bearing shoulders and cloth folds. */
-function drape(rings, {segments=80, depth=.68, open=0, fold=.014, folds=13}={}) {
+function drape(rings, {segments=80, depth=.68, open=0, fold=.006, folds=7}={}) {
   const p=[],uv=[],ix=[];
   for(let j=0;j<rings.length;j++) {
     const [y,r,offset=0]=rings[j];
@@ -63,37 +63,41 @@ export function createDarkWizard(id = 'silver') {
   const engraved=new THREE.MeshStandardMaterial({color:0x3b3d39,roughness:.8,metalness:.45});
   const add=(parent,g,m,xyz,scale)=>{const o=new THREE.Mesh(g,m);o.position.set(...xyz);if(scale)o.scale.set(...scale);o.castShadow=o.receiveShadow=true;parent.add(o);return o;};
   const rings=[];
-  const profile=[[.09,.39],[.3,.38],[.6,.34],[.85,.28],[1.05,.235],[1.18,.245],[1.36,.32],[1.46,.29],[1.53,.13]];
+  const profile=[[.09,.285],[.3,.27],[.6,.235],[.85,.195],[1.05,.175],[1.18,.18],[1.36,.225],[1.46,.235],[1.53,.09]];
   for(let k=0;k<profile.length-1;k++)for(let i=0;i<4;i++)rings.push([THREE.MathUtils.lerp(profile[k][0],profile[k+1][0],i/4),THREE.MathUtils.lerp(profile[k][1],profile[k+1][1],i/4)]);
   rings.push(profile.at(-1));
   for(const ring of rings) ring[1]*=THREE.MathUtils.lerp(v.hem,v.shoulder,ring[0]/1.53);
-  const under=add(root,drape(rings,{fold:.009}),lining,[0,0,0]);
-  const robe=add(root,drape(rings,{open:.075,folds:v.folds}),cloth,[0,0,0]);
+  const under=add(root,drape(rings,{fold:.003}),lining,[0,0,0]);
+  const robe=add(root,drape(rings,{open:.16,fold:.006,folds:Math.round(v.folds*.45)}),cloth,[0,0,0]);
   robe.userData.rest=robe.geometry.attributes.position.array.slice();root.userData.clothMeshes=[robe];
   // Overlapping draped collar instead of a spherical torso.
-  add(root,drape([[1.25,.27],[1.36,.34],[1.44,.31],[1.51,.18]],{open:.21,fold:.018,depth:.73}),cloth,[0,0,.01]);
+  add(root,drape([[1.32,.20],[1.40,.245],[1.47,.23],[1.55,.095]],{open:.34,fold:.004,depth:.73}),cloth,[0,0,.01]);
   if(v.mantle) {
-    const mantle=add(root,drape([[.97,.29],[1.16,.35],[1.35,.39],[1.46,.34],[1.53,.15]],{open:.34,depth:.79,fold:.011,folds:v.folds}),cloth,[0,0,-.025]);
+    const mantle=add(root,drape([[.97,.205],[1.16,.235],[1.35,.27],[1.46,.255],[1.55,.10]],{open:.42,depth:.79,fold:.006,folds:7}),cloth,[0,0,-.025]);
     mantle.scale.x=v.shoulder;
     mantle.userData.rest=mantle.geometry.attributes.position.array.slice();root.userData.clothMeshes.push(mantle);
   }
-  const clasp=add(root,new THREE.TorusGeometry(.029,.006,6,18),silver,[0,1.43,.163]);
+  const clasp=add(root,new THREE.TorusGeometry(.029,.006,6,18),silver,[0,1.43,.175]);
   // Fitted leather waist belt follows the torso; understated metal fasteners.
-  add(root,drape([[1.025,.242],[1.085,.242]],{depth:.70,fold:.002}),leather,[0,0,.005]);
-  const buckle=add(root,new THREE.TorusGeometry(.028,.004,6,20),silver,[0,1.055,.18]);buckle.scale.x=1.3;
-  for(let y=1.17;y<1.4;y+=.065)add(root,new THREE.SphereGeometry(.009,10,8),engraved,[.023,y,.205]);
+  add(root,drape([[1.025,.18],[1.075,.18]],{depth:.70,fold:.002}),leather,[0,0,.005]);
+  const buckle=add(root,new THREE.TorusGeometry(.028,.004,6,20),silver,[0,1.05,.137]);buckle.scale.x=1.3;
+  for(let y=1.17;y<1.4;y+=.065)add(root,new THREE.SphereGeometry(.009,10,8),engraved,[.023,y,.152]);
   const legs=[];
   for(const side of [-1,1]) {
-    const leg=new THREE.Group();leg.position.set(side*.125,.72,0);root.add(leg);
-    add(leg,new THREE.CapsuleGeometry(.068,.35,6,12),lining,[0,-.24,0]);
-    add(leg,new THREE.SphereGeometry(1,20,12),leather,[0,-.64,.055],[.081,.083,.17]);legs.push(leg);
+    const leg=new THREE.Group();leg.position.set(side*.105,.96,0);root.add(leg);
+    // Hip-to-knee and knee-to-ankle volumes retain adult leg length under the open robe.
+    add(leg,new THREE.CapsuleGeometry(.075,.31,8,16),lining,[0,-.23,0],[1,1,.88]);
+    add(leg,new THREE.CapsuleGeometry(.055,.30,8,16),lining,[0,-.65,0],[1,1,.85]);
+    const boot=add(leg,new THREE.SphereGeometry(1,24,16),leather,[0,-.89,.065],[.069,.07,.14]);boot.name='adult-boot';legs.push(leg);
   }
-  const head=new THREE.Group();head.position.y=1.73;root.add(head);
+  const head=new THREE.Group();head.position.y=1.73;head.scale.setScalar(.58);root.add(head);
+  head.name="adult-head";
+  add(root,new THREE.CylinderGeometry(.065,.075,.14,24),lining,[0,1.565,.015]);
   // Hood is an open, thick cloth shell framing the face, not a round helmet.
   const hood=add(head,drape([[-.29,.20,-.04],[-.17,.24,-.03],[.02,.245,-.04],[.18,.22,-.07],[.27,.14,-.07],[.30,.025,-.06]],{open:.7,depth:1,fold:.009}),cloth,[0,0,0]);
   add(head,new THREE.SphereGeometry(1,32,24),lining,[0,-.015,.09],[.17,.24,.13]);
-  hood.scale.set(1,v.hood,1.04);
-  add(head,maskGeometry(v),silver,[0,0,0]);
+  hood.scale.set(1,1+(v.hood-1)*.35,1.04);
+  const face=add(head,maskGeometry(v),silver,[0,0,0]);face.name="adult-faceplate";
   // Recessed human eyes: no glowing cartoon eye dots. Faceplate remains in front.
   const eyeWhite=new THREE.MeshStandardMaterial({color:0x756b5f,roughness:.7});
   const iris=new THREE.MeshStandardMaterial({color:0x221a13,roughness:.4});
@@ -109,18 +113,22 @@ export function createDarkWizard(id = 'silver') {
   }
   const arms={};
   for(const side of [-1,1]){
-    const arm=new THREE.Group();arm.position.set(side*.29,1.36,0);root.add(arm);
-    add(arm,drape([[-.5,.105],[-.42,.125],[-.3,.11],[-.15,.105],[0,.115]],{depth:.83,fold:.008}),cloth,[0,0,0]);
-    add(arm,new THREE.SphereGeometry(1,18,12),leather,[0,-.525,.015],[.048,.07,.038]);
-    for(let j=0;j<4;j++)add(arm,new THREE.CapsuleGeometry(.011,.06,4,8),leather,[(j-1.5)*.021,-.585,.025]);
-    add(arm,new THREE.CapsuleGeometry(.014,.045,4,8),leather,[-side*.049,-.535,.045]).rotation.z=side*.45;
-    // Sewn cuff and natural elbow bend make sleeves read as tailored clothing.
-    add(arm,drape([[-.49,.108],[-.455,.11]],{depth:.85,fold:.002}),leather,[0,0,0]);
-    arm.rotation.x=-.08;arm.rotation.z=side*.06;
+    const arm=new THREE.Group();arm.position.set(side*.235*v.shoulder,1.44,0);root.add(arm);
+    // Tapered upper arm, elbow and forearm. Wrists reach the upper thigh.
+    add(arm,drape([[-.60,.052,.035],[-.51,.063,.025],[-.38,.068,.01],[-.30,.077,0],[-.15,.084,0],[0,.09,0]],{depth:.85,fold:.003,folds:5}),cloth,[0,0,0]);
+    add(arm,new THREE.SphereGeometry(1,20,14),leather,[0,-.64,.04],[.041,.052,.028]);
+    const lengths=[.049,.065,.071,.061];
+    for(let j=0;j<4;j++){
+      const finger=add(arm,new THREE.CapsuleGeometry(.0085,lengths[j],5,10),leather,[(j-1.5)*.018,-.684-lengths[j]/2,.048]);
+      finger.rotation.x=-.12;
+    }
+    add(arm,new THREE.CapsuleGeometry(.012,.036,5,10),leather,[-side*.039,-.644,.059]).rotation.z=side*.45;
+    add(arm,drape([[-.60,.054,.035],[-.57,.056,.03]],{depth:.85,fold:.001}),leather,[0,0,0]);
+    arm.rotation.x=-.08;arm.rotation.z=side*.08;
     arms[side<0?'left':'right']=arm;
   }
   const wand=new THREE.Group();add(wand,new THREE.CylinderGeometry(.006,.016,.65,12),new THREE.MeshStandardMaterial({color:0x342a20,roughness:.8}),[0,-.23,0]);
-  wand.position.set(.02,-.57,.04);wand.rotation.z=-.3;arms.right.add(wand);
+  wand.position.set(.02,-.70,.063);wand.rotation.z=-.3;arms.right.add(wand);
   const pain=new THREE.Group();pain.visible=false;root.add(pain);
   const laugh=new THREE.Group();laugh.visible=false;root.add(laugh);
   root.scale.setScalar(1.35);

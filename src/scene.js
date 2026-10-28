@@ -995,7 +995,7 @@ export class MagicScene {
     for (const [side, group] of [[-1, this.armorArms.left], [1, this.armorArms.right]]) {
       const swing = (1 - c) * Math.sin(this.patrolPhase * 4 + (side > 0 ? Math.PI : 0)) * 0.26;
       group.rotation.x = ar.tickling ? -.9 + rattle : (ar.dented && side < 0 ? -.75 : -.1 + swing - c*.55);
-      group.rotation.z = side * (0.24 + c * 0.55);
+      group.rotation.z = side * (0.08 + c * 0.55);
     }
 
     if (this.laughMark.visible) {

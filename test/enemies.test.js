@@ -26,3 +26,23 @@ test('changing costume retains world and collapsed progress, releases old GPU re
  s.setEnemyVariant('warden');assert.equal(old.parent,null);assert.equal(s.scene.children.length,1);assert.equal(disposed,resources.size);
  assert.equal(s.world,world);assert.equal(s.collapse,.75);assert.equal(s.armor.userData.variantId,'warden');disposeDarkWizard(s.armor);
 });
+
+test('all costumes retain adult head-to-body ratios and grounded feet',()=>{
+ for(const v of ENEMY_VARIANTS){
+  const w=createDarkWizard(v.id);w.root.updateMatrixWorld(true);
+  const body=new THREE.Box3().setFromObject(w.root);
+  const face=new THREE.Box3().setFromObject(w.root.getObjectByName('adult-faceplate'));
+  const head=new THREE.Box3().setFromObject(w.head);
+  const ratio=(body.max.y-body.min.y)/(face.max.y-face.min.y);
+  assert.ok(ratio>7&&ratio<8.3,`${v.id}: ${ratio}`);
+  assert.ok((head.max.y-head.min.y)/(body.max.y-body.min.y)<.20);
+  assert.ok(Math.abs(body.min.y)<.015);
+  for(const leg of w.legs){
+   const foot=new THREE.Box3().setFromObject(leg.getObjectByName('adult-boot'));
+   assert.ok(Math.abs(foot.min.y)<.015);assert.ok(leg.position.y>.9);
+  }
+  const shoulderSpan=w.arms.right.position.x-w.arms.left.position.x;
+  assert.ok(shoulderSpan>.42&&shoulderSpan<.54);
+  disposeDarkWizard(w.root);
+ }
+});
