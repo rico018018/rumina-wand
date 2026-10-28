@@ -1,10 +1,11 @@
+import {impactScore,scoreDuration} from './sound-score.js';
 /**
  * 効果音。音声ファイルは使わず WebAudio で合成する（無料運用・追加ダウンロードなし）。
  *
  * 【実物の杖の音との関係】
  * 実物の録音ではなく、呪文のイメージをもとに独自に合成します。
  * ここで鳴らすのは合成音です。実物に寄せられるのは「音の種類・長さ・鳴るタイミング」で、
- * それらは下の SPELL_SOUNDS を書き換えるだけで調整できるようにしてあります。
+ * 飛翔音は SPELL_SOUNDS、着弾後の材質音とタイミングは sound-score.js で調整します。
  *
  * 【構成】
  * 画面の魔法は「振り → 飛翔 → 着弾」で動くので、音も2段に分ける。
@@ -66,7 +67,12 @@ export class AudioKit {
         this.shelf.type = 'highshelf';
         this.shelf.frequency.value = 4200;
         this.shelf.gain.value = -5;
-        this.master.connect(this.shelf).connect(this.ctx.destination);
+        this.compressor = this.ctx.createDynamicsCompressor?.();
+        if(this.compressor){
+          this.compressor.threshold.value=-12;this.compressor.knee.value=12;
+          this.compressor.ratio.value=8;this.compressor.attack.value=.003;this.compressor.release.value=.18;
+          this.master.connect(this.shelf).connect(this.compressor).connect(this.ctx.destination);
+        } else this.master.connect(this.shelf).connect(this.ctx.destination);
         this.#makeNoise();
       }
       if (this.ctx.state === 'suspended') this.ctx.resume();
@@ -94,7 +100,7 @@ export class AudioKit {
       // ピンクノイズ寄りにして、ザラつきを和らげる
       const white = Math.random() * 2 - 1;
       last = (last + 0.02 * white) / 1.02;
-      d[i] = last * 3.2;
+      d[i] = white * .55 + last * 2.4;
     }
     this.noiseBuffer = buf;
   }
@@ -110,7 +116,7 @@ export class AudioKit {
 
   // ------------------------------------------------------------ 部品
 
-  #tone({ freq, at, dur, type = 'sine', gain = 0.5, slideTo = null, vibrato = 0, detune = 0 }) {
+  #tone({ freq, at, dur, type = 'sine', gain = 0.5, slideTo = null, vibrato = 0, detune = 0, attack = .008, pan = 0, panTo = pan }) {
     const ctx = this.ctx;
     const osc = ctx.createOscillator();
     this.sources.add(osc); osc.onended = () => this.sources.delete(osc);
@@ -121,10 +127,12 @@ export class AudioKit {
 
     const env = ctx.createGain();
     env.gain.setValueAtTime(0.0001, at);
-    env.gain.exponentialRampToValueAtTime(gain, at + Math.min(0.035, dur * 0.3));
+    env.gain.exponentialRampToValueAtTime(gain, at + Math.min(attack, dur * 0.3));
+    env.gain.linearRampToValueAtTime(gain*.45,at+dur*.38);
     env.gain.exponentialRampToValueAtTime(0.0001, at + dur);
 
-    osc.connect(env).connect(this.master);
+    osc.connect(env);const panner=this.#output(env,pan,panTo,at,dur);
+    osc.onended=()=>{this.sources.delete(osc);osc.disconnect?.();env.disconnect?.();panner?.disconnect?.();};
     if (vibrato > 0) {
       const lfo = ctx.createOscillator();
     this.sources.add(lfo); lfo.onended = () => this.sources.delete(lfo);
@@ -140,7 +148,7 @@ export class AudioKit {
   }
 
   /** 擦過音。風切り・砕ける音・ヘビの音に使う。 */
-  #noise({ at, dur, gain = 0.3, from = 900, to = 300, q = 1.2, type = 'bandpass' }) {
+  #noise({ at, dur, gain = 0.3, from = 900, to = 300, q = 1.2, type = 'bandpass', attack = null, pan = 0, panTo = pan }) {
     const ctx = this.ctx;
     const src = ctx.createBufferSource();
     this.sources.add(src); src.onended = () => this.sources.delete(src);
@@ -153,9 +161,11 @@ export class AudioKit {
     filt.frequency.exponentialRampToValueAtTime(Math.max(60, to), at + dur);
     const env = ctx.createGain();
     env.gain.setValueAtTime(0.0001, at);
-    env.gain.exponentialRampToValueAtTime(gain, at + dur * 0.22);
+    env.gain.exponentialRampToValueAtTime(gain, at + Math.min(attack ?? dur*.22,dur*.8));
+    env.gain.linearRampToValueAtTime(gain*.6,at+Math.min(.9*dur,Math.max(.42*dur,(attack ?? dur*.22)+dur*.05)));
     env.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-    src.connect(filt).connect(env).connect(this.master);
+    src.connect(filt).connect(env);const panner=this.#output(env,pan,panTo,at,dur);
+    src.onended=()=>{this.sources.delete(src);src.disconnect?.();filt.disconnect?.();env.disconnect?.();panner?.disconnect?.();};
     src.start(at);
     src.stop(at + dur + 0.03);
   }
@@ -171,7 +181,7 @@ export class AudioKit {
     const cfg = (SPELL_SOUNDS[spellId] || FALLBACK).swing;
     const at = this.ctx.currentTime + 0.005;
     const dur = Math.max(0.12, swingMs / 1000);
-    this.#noise({ at, dur, gain: 0.16 + cfg.noise * 0.2, from: cfg.start * 2.2, to: cfg.end * 2.2, q: 0.9 });
+    this.#noise({ at, dur, gain: 0.25 + cfg.noise * 0.24, from: cfg.start * 2.2, to: cfg.end * 2.2, q: 0.9, pan:-.55,panTo:.1 });
     this.#tone({ freq: cfg.start, at, dur: dur * 0.9, type: 'sine', gain: 0.16, slideTo: cfg.end });
     return swingMs;
   }
@@ -184,79 +194,27 @@ export class AudioKit {
     this.playSwing(spellId,Math.min(ms,Math.max(120,timing.swingMs)));
     const at=this.ctx.currentTime+Math.max(0,timing.swingMs)/1000;
     const dur=Math.max(.12,(timing.impactMs-timing.swingMs)/1000);
-    this.#tone({freq:cfg.start*1.3,at,dur,type:'triangle',gain:.13,slideTo:cfg.end*1.5});
-    this.#noise({at,dur,gain:.14+cfg.noise*.16,from:cfg.start*3,to:cfg.end*4,q:1.5});
+    this.#tone({freq:cfg.start*1.3,at,dur,type:'sine',gain:.08,slideTo:cfg.end*1.5});
+    this.#noise({at,dur,gain:.22+cfg.noise*.20,from:cfg.start*3,to:cfg.end*4,q:.8,pan:.1,panTo:.55});
     return ms;
   }
 
   /** 着弾の音。呪文ごとに作りを変える。@returns 鳴る長さ（ミリ秒） */
   playImpact(spellId) {
     if (!this.ready) return 0;
-    const cfg = (SPELL_SOUNDS[spellId] || FALLBACK).impact;
-    const at = this.ctx.currentTime + 0.005;
-    const n = cfg.notes;
-    let total = cfg.dur;
-
-    switch (cfg.type) {
-      case 'boom': { // 重く沈む
-        this.#noise({ at, dur: 0.25, gain: 0.3, from: 1400, to: 120, q: 0.6, type: 'lowpass' });
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.07, dur: cfg.dur, type: cfg.wave, gain: 0.5, slideTo: f * 0.55 }));
-        break;
-      }
-      case 'crash': { // 砕ける
-        this.#noise({ at, dur: 0.42, gain: 0.42, from: 5200, to: 420, q: 0.5 });
-        this.#noise({ at: at + 0.1, dur: 0.5, gain: 0.22, from: 2400, to: 180, q: 0.8 });
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.05, dur: 0.38, type: cfg.wave, gain: 0.26, slideTo: f * 0.5 }));
-        break;
-      }
-      case 'shield': { // 張られる
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.065, dur: cfg.dur, type: cfg.wave, gain: 0.34 }));
-        this.#noise({ at, dur: 0.5, gain: 0.1, from: 400, to: 1900, q: 2.2 });
-        break;
-      }
-      case 'heal': {
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.1, dur: cfg.dur, type: cfg.wave, gain: 0.3, vibrato: 0.006 }));
-        break;
-      }
-      case 'clang': { // 金属が弾かれる
-        this.#noise({ at, dur: 0.14, gain: 0.3, from: 6000, to: 1800, q: 0.8 });
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.045, dur: 0.45, type: cfg.wave, gain: 0.38, detune: i * 7 }));
-        break;
-      }
-      case 'giggle': {
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.085, dur: 0.16, type: cfg.wave, gain: 0.3, vibrato: 0.02 }));
-        break;
-      }
-      case 'hiss': { // ヘビ
-        this.#noise({ at, dur: 0.62, gain: 0.26, from: 3600, to: 1500, q: 1.8 });
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.1, dur: 0.4, type: cfg.wave, gain: 0.24, vibrato: 0.03 }));
-        break;
-      }
-      case 'blurp': { // ナメクジが落ちる
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.11, dur: 0.22, type: cfg.wave, gain: 0.36, slideTo: f * 0.6 }));
-        this.#noise({ at: at + 0.3, dur: 0.2, gain: 0.14, from: 900, to: 260, q: 1.4 });
-        break;
-      }
-      case 'slow': { // だんだん遅く
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.14 + i * i * 0.02, dur: 0.34, type: cfg.wave, gain: 0.3, slideTo: f * 0.85 }));
-        total = cfg.dur + 0.2;
-        break;
-      }
-      case 'vanish': {
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.055, dur: 0.3, type: cfg.wave, gain: 0.3 - i * 0.05 }));
-        this.#noise({ at, dur: 0.4, gain: 0.12, from: 2600, to: 300, q: 1.2 });
-        break;
-      }
-      default: { // chime
-        n.forEach((f, i) => this.#tone({ freq: f, at: at + i * 0.075, dur: cfg.dur, type: cfg.wave, gain: 0.34 }));
-      }
+    const at=this.ctx.currentTime+.005;
+    const events=impactScore(spellId);
+    for(const event of events){
+      const args={...event,at:at+event.at};
+      if(event.kind==='tone')this.#tone(args);else this.#noise(args);
     }
-    // A lower resonant layer and delayed harmonics give the visual bloom a spatial tail.
-    const root=n[0];
-    this.#tone({freq:Math.max(55,root/3),at,dur:.8,type:'sine',gain:.12,slideTo:Math.max(45,root/4)});
-    for(let i=0;i<3;i++)this.#tone({freq:n[i%n.length]*(i===2?2:1),at:at+.28+i*.22,dur:.65,type:'sine',gain:.085/(i+1),detune:(i-1)*6});
-    total=Math.max(total,(n.length-1)*.14+cfg.dur,1.4);
-    return Math.round(total * 1000) + 120;
+    return Math.ceil(scoreDuration(events)*1000)+120;
+  }
+
+  #output(node,pan,panTo,at,dur){
+    if(!this.ctx.createStereoPanner){node.connect(this.master);return null;}
+    const p=this.ctx.createStereoPanner();p.pan.setValueAtTime(pan,at);p.pan.linearRampToValueAtTime(panTo,at+dur);
+    node.connect(p).connect(this.master);return p;
   }
 
   /** 発動待ち時間の「ためる音」。静かに上がる。 */

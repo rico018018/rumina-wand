@@ -30,6 +30,8 @@ class FakeAudio {
  constructor(){this.currentTime=10;this.sampleRate=8000;this.state='running';this.destination={};this.events=[];}
  node(){return {connect(x){return x;},frequency:param(),detune:param(),gain:param(),Q:param()};}
  createGain(){return this.node();}createBiquadFilter(){return this.node();}
+ createStereoPanner(){return {...this.node(),pan:param()};}
+ createDynamicsCompressor(){return {...this.node(),threshold:param(),knee:param(),ratio:param(),attack:param(),release:param()};}
  createOscillator(){return this.source('tone');}createBufferSource(){return this.source('noise');}
  source(type){const o=this.node();o.start=t=>this.events.push({type,start:t});o.stop=t=>this.events.push({type,stop:t});return o;}
  createBuffer(ch,n){return {getChannelData:()=>new Float32Array(n)};}
