@@ -38,7 +38,13 @@ const wandLabel = $('wandLabel');
 const wandTimerArc = $('wandTimerArc');
 const TIMER_CIRCUMFERENCE = 2 * Math.PI * 18;
 
+let quietStatusTimer, previousStatusKey;
 function paintWand(status) {
+  const key=`${status.childMode}:${status.childMessage}`;
+  if(key!==previousStatusKey){
+    previousStatusKey=key;clearTimeout(quietStatusTimer);wandbar.dataset.quiet='false';
+    if(status.childMode==='idle')quietStatusTimer=setTimeout(()=>{wandbar.dataset.quiet='true';},2600);
+  }
   wandbar.dataset.mode = status.childMode;
   wandLabel.textContent = status.childMessage;
   // 発動中・プレビュー中は、その呪文の登録色を杖先に出す
@@ -194,6 +200,7 @@ app.onWorld(paintTally);
 // 画面サイズの変化（横画面への切り替え・HDMI接続）に追従する
 const onResize = () => app.scene.resize();
 window.addEventListener('resize', onResize);
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(onResize).observe($('stage'));
 window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
 if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
 
@@ -782,3 +789,16 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){stopTour()
 
 const easyList=document.getElementById('easyWords');
 for(const spell of SPELLS){const row=document.createElement('li');row.textContent=`${spell.spelling}：${EASY_ALIASES[spell.id]}`;easyList.append(row);}
+
+// Fullscreen is progressive enhancement. iPhone users can launch from the Home Screen.
+const fullscreenBtn=$('fullscreenBtn');
+const standalone=window.matchMedia('(display-mode: standalone)').matches || navigator.standalone===true;
+if(standalone)$('displayModeNote').textContent='ホーム画面のWebアプリとして起動中です。Safariのタブ・アドレス欄は表示されません。';
+fullscreenBtn.hidden=!document.fullscreenEnabled;
+fullscreenBtn.addEventListener('click',async()=>{
+ try {
+  if(document.fullscreenElement)await document.exitFullscreen();
+  else {await document.documentElement.requestFullscreen();setPanel(false);}
+ } catch { $('fullscreenNote').textContent='この環境では全画面にできません。iPhoneはホーム画面に追加して起動してください。'; }
+});
+document.addEventListener('fullscreenchange',()=>{fullscreenBtn.textContent=document.fullscreenElement?'全画面を終了':'全画面にする';onResize();});

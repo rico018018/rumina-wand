@@ -504,51 +504,19 @@ export class MagicScene {
    * 供給源が見えないと、宝物がどこから来たのか分からない。
    */
   #buildTreasury() {
-    const alcoveMat = new THREE.MeshStandardMaterial({ color: 0x222421, roughness: 0.95, metalness: 0.05 });
-    const alcove = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 0.5), alcoveMat);
-    alcove.position.set(-6.9, 1.3, -6.55);
-    this.scene.add(alcove);
-
-    // 中が金色に光る＝宝物がしまってある場所だと分かる
-    const innerGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowSprite(), color: 0xffcf6a, transparent: true, opacity: 0.5,
-      blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
-    }));
-    innerGlow.scale.set(3.0, 3.0, 1);
-    innerGlow.position.set(-6.9, 1.35, -6.3);
-    this.scene.add(innerGlow);
-    this.treasuryGlow = innerGlow;
-    // 点光源は増やさず、棚の中を自発光させて「光っている場所」に見せる
-
-    const shelfMat = new THREE.MeshStandardMaterial({ color: 0x6b5526, roughness: 0.6, metalness: 0.55, envMapIntensity: 0.8, emissive: 0x3a2a08, emissiveIntensity: 0.1 });
-    const goldMat = new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.22, metalness: 0.95, envMapIntensity: 1.6, emissive: 0x6a4a10, emissiveIntensity: 0.15 });
-    for (let s = 0; s < 3; s += 1) {
-      const shelf = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.07, 0.42), shelfMat);
-      shelf.position.set(-6.9, 0.5 + s * 0.78, -6.4);
-      this.scene.add(shelf);
-      for (let i = 0; i < 4; i += 1) {
-        const item = new THREE.Mesh(
-          i % 2 === 0 ? new THREE.IcosahedronGeometry(0.11, 0) : new THREE.TorusGeometry(0.09, 0.035, 8, 14),
-          goldMat,
-        );
-        item.position.set(-7.8 + i * 0.6, 0.63 + s * 0.78, -6.4);
-        item.rotation.set(Math.random(), Math.random(), Math.random());
-        this.scene.add(item);
-      }
-    }
-    const arch = new THREE.Mesh(
-      new THREE.TorusGeometry(1.35, 0.11, 10, 26, Math.PI),
-      new THREE.MeshStandardMaterial({ color: STONE, roughness: 0.7, metalness: 0.3 }),
-    );
-    arch.position.set(-6.9, 2.6, -6.35);
-    this.scene.add(arch);
+    // A grounded chest replaces the oversized, apparently floating cabinet.
+    const source=createTreasureChest(this.tex.wood);
+    source.position.set(-4.1,0,-2.4);source.rotation.y=.18;this.scene.add(source);
+    const innerGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowSprite(),color:0xffcf6a,transparent:true,opacity:.16,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    innerGlow.scale.set(.9,.6,1);innerGlow.position.copy(source.position).add(new THREE.Vector3(0,.4,.32));
+    this.scene.add(innerGlow);this.treasuryGlow=innerGlow;
   }
 
   #buildProps() {
     const shadow = !this.lowPower;
     const goldMat = new THREE.MeshStandardMaterial({
       color: GOLD, roughness: 0.2, metalness: 0.96, envMapIntensity: 1.8,
-      emissive: 0x5a3f0c, emissiveIntensity: 0.75,
+      emissive: 0x5a3f0c, emissiveIntensity: 0.18,
     });
     const stoneMat = new THREE.MeshStandardMaterial({
       map: this.tex.wall.map, roughnessMap: this.tex.wall.roughnessMap,
@@ -762,7 +730,7 @@ export class MagicScene {
   // ---------------------------------------------------------------- 公開API
 
   targetFor(spellId) {
-    if (spellId === 'accio') return new THREE.Vector3(-6.9,1.35,-6.3);
+    if (spellId === 'accio') return new THREE.Vector3(-4.1,.4,-2.4);
     if (spellId === 'protego') return new THREE.Vector3(0,1.3,2.4);
     if (spellId === 'reducto') return this.rockMeshes.find(m=>m.visible)?.position.clone() || TARGET_POINTS.reducto.clone();
     if (spellId === 'vipera_evanesca') return this.pools.snakes.find(s=>s.group.visible)?.home.clone() || TARGET_POINTS.serpensortia.clone();
@@ -919,7 +887,7 @@ export class MagicScene {
     }
     this.candleSticks.instanceMatrix.needsUpdate = true;
     if (this.treasuryGlow) {
-      this.treasuryGlow.material.opacity = 0.42 + Math.sin(t * 0.9) * 0.08;
+      this.treasuryGlow.material.opacity = 0.12 + Math.sin(t * 0.9) * 0.04;
     }
 
     // 塵がゆっくり漂う
@@ -938,7 +906,7 @@ export class MagicScene {
       item.mesh.rotation.y = 0;
       item.mesh.rotation.x = 0;
       const progress=Math.min(1, Math.max(0,(Date.now()-(item.bornAt||0))/1500));
-      item.mesh.position.copy(new THREE.Vector3(-6.9,1.35,-6.3).lerp(item.home,progress));
+      item.mesh.position.copy(new THREE.Vector3(-4.1,.4,-2.4).lerp(item.home,progress));
       item.mesh.position.y += Math.sin(progress*Math.PI)*2;
     });
 

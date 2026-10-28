@@ -7,6 +7,8 @@
 <meta name="description" content="玩具の杖で唱えた呪文に合わせて、テレビの中の魔法世界が変わる家庭内Webアプリ">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="るみなのまほう">
+<link rel="manifest" href="manifest.webmanifest">
 <title>ハリーポッターとるみなのまほうのつえ</title>
 <link rel="stylesheet" href="src/styles.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230B1030'/><circle cx='9' cy='23' r='4.5' fill='%23D9A94A'/><path d='M11 21L25 7' stroke='%23F3EDDC' stroke-width='3' stroke-linecap='round'/></svg>">
@@ -69,7 +71,7 @@
     </div>
 
     <!-- 保護者向けパネルの開閉。テレビにも映るので小さく、端に置く -->
-    <button type="button" class="panel-toggle" id="panelToggle" aria-expanded="false" aria-controls="panel">
+    <button type="button" class="panel-toggle" id="panelToggle" aria-label="保護者設定" title="保護者設定" aria-expanded="false" aria-controls="panel">
       <span aria-hidden="true">⚙</span><span class="panel-toggle__text">ほごしゃ</span>
     </button>
   </div>
@@ -86,6 +88,13 @@
   </header>
 
   <div class="panel__body">
+    <section class="card">
+      <h2 class="card__title">テレビで大きく遊ぶ</h2>
+      <p class="note" id="displayModeNote">iPhoneではSafariの共有 →「ホーム画面に追加」→「Webアプリとして開く」をオン → 追加したアイコンから起動。上部のタブとアドレス欄がない画面で遊べます。</p>
+      <p class="note">横向きにしてからHDMIでテレビに接続してください。初回はマイク・カメラの許可を確認してください。</p>
+      <button type="button" class="btn" id="fullscreenBtn" hidden>全画面にする</button>
+      <p class="note" id="fullscreenNote" role="status"></p>
+    </section>
 
     <!-- 1. 遊ぶ ------------------------------------------------------------- -->
     <section class="card">
