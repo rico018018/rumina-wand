@@ -435,6 +435,7 @@ export class WandApp {
         const outcome = applySpell(this.world, spellId, options);
 
         this.scene.setWorld(this.world);
+        this.scene.reactToSpell?.(spellId);
         this.#saveWorld();
         this.#emitWorld();
 

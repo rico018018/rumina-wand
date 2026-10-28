@@ -1,3 +1,4 @@
+import {reactionPose,applyReaction} from './enemy-reactions.js';
 import { createTreasureChest, createSnake, chestHome, CHEST_LEVELS } from './real-props.js';
 import { SpellFocus, SPELL_STORIES } from './spell-focus.js';
 /**
@@ -524,14 +525,14 @@ export class MagicScene {
     });
 
     // --- 宝物置き場（Accio の着地点） ---
-    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.76, 0.62, 18), stoneMat);
-    plinth.position.set(-2.45, 0.31, -2.4);
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.08, 0.10, 24), stoneMat);
+    plinth.position.set(-2.45, 0.05, -2.4);
     plinth.castShadow = shadow;
     plinth.receiveShadow = shadow;
     this.scene.add(plinth);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.05, 10, 28), goldMat);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.025, 10, 32), goldMat);
     rim.rotation.x = Math.PI / 2;
-    rim.position.set(-2.45, 0.63, -2.4);
+    rim.position.set(-2.45, 0.10, -2.4);
     rim.castShadow = shadow;
     this.scene.add(rim);
 
@@ -556,9 +557,11 @@ export class MagicScene {
       const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5 - i * 0.06, 3), rockMat);
       const verts=mesh.geometry.attributes.position;
       for(let v=0;v<verts.count;v++){const x=verts.getX(v),y=verts.getY(v),z=verts.getZ(v);const scale=1+.12*Math.sin(x*17+z*11)*Math.cos(y*13);verts.setXYZ(v,x*scale,y*scale*.85,z*scale);}
+      mesh.geometry.scale(1.6,1.6,1.6);
       mesh.geometry.computeVertexNormals();
       mesh.position.copy(p);
       mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+      mesh.position.y-=new THREE.Box3().setFromObject(mesh).min.y;
       mesh.castShadow = shadow;
       mesh.receiveShadow = shadow;
       mesh.userData.rockId = `rock-${i + 1}`;
@@ -827,6 +830,7 @@ export class MagicScene {
 
   /** @returns {{swingMs:number, impactMs:number, totalMs:number}} */
   castSpellEffect(spellId, hexColor, options) {
+    this.propReaction=null;
     this.focus.cancel();
     this.clearVanishGhosts();
     if(spellId==='rennervate')this.collapse=1;
@@ -857,7 +861,9 @@ export class MagicScene {
     return [];
   }
   clearVanishGhosts() {for(const g of this.vanishGhosts){g.mesh.removeFromParent();g.mesh.traverse(o=>o.material?.dispose());}this.vanishGhosts=[];}
-  cancelEffects() { this.focus.cancel(); this.clearVanishGhosts(); this.effects.cancel(); }
+  reactToSpell(id) { this.propReaction={id,start:performance.now()}; }
+
+  cancelEffects() { this.propReaction=null; this.focus.cancel(); this.clearVanishGhosts(); this.effects.cancel(); }
   setOrigin(x) { this.effects.originX = x; }
   charge(ms) { this.effects.charge(ms); }
   fizzle() { this.effects.fizzle(); }
@@ -998,6 +1004,11 @@ export class MagicScene {
       group.rotation.z = side * (0.08 + c * 0.55);
     }
 
+    if(this.propReaction){
+      const elapsed=performance.now()-this.propReaction.start;
+      applyReaction({root:this.armor,head:this.armorHelmet,arms:this.armorArms},reactionPose(this.propReaction.id,elapsed,ar.standing));
+      if(elapsed>=2800)this.propReaction=null;
+    }
     if (this.laughMark.visible) {
       this.laughMark.children.forEach((n, i) => {
         n.position.y = 1.9 + i * 0.15 + Math.sin(t * 3.2 + i) * 0.07;

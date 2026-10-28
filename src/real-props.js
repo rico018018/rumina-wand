@@ -1,9 +1,9 @@
 import * as THREE from '../vendor/three.module.min.js';
 export const CHEST_LEVELS=5;
-export const CHEST_STEP=.68;
-export function chestHome(level){return new THREE.Vector3(-2.45,.65+Math.min(4,Math.max(0,level))*CHEST_STEP,-2.4);}
+export const CHEST_STEP=.782;
+export function chestHome(level){return new THREE.Vector3(-2.45,.10+Math.min(4,Math.max(0,level))*CHEST_STEP,-2.4);}
 export function createTreasureChest(wood) {
- const root=new THREE.Group();root.name='wooden-treasure-chest';
+ const root=new THREE.Group();root.name='wooden-treasure-chest';root.scale.set(1.5,1.15,1.35);
  const timber=new THREE.MeshStandardMaterial({color:0x795032,map:wood.map,roughnessMap:wood.roughnessMap,bumpMap:wood.map,bumpScale:.012,roughness:.78,metalness:0});
  const brass=new THREE.MeshStandardMaterial({color:0xb58e48,roughness:.4,metalness:.82});
  const dark=new THREE.MeshStandardMaterial({color:0x211a14,roughness:.9});

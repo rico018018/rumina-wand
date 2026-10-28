@@ -13,7 +13,7 @@ test('five chests form a stable tower without intersecting their lids',()=>{
   const box=new THREE.Box3().setFromObject(chest);
   assert.ok(box.max.y-box.min.y<=CHEST_STEP+.001);
   if(last){assert.ok(box.min.y>=last.max.y-.001);assert.ok(box.min.y-last.max.y<.02);}
-  assert.ok(box.max.x-box.min.x>.9);last=box;
+  assert.ok(box.max.x-box.min.x>1.4);last=box;
  }
  assert.equal(CHEST_LEVELS,CAPS.treasures);assert.ok(last.max.y<4.1);
 });
